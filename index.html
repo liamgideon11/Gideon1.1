@@ -247,7 +247,7 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v3.4</div>
+  <div class="ver">GIDEON v3.5</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -821,7 +821,7 @@ function voiceAvailable(){
    still arriving, avoids iPhone cutting off long speech, and makes it
    easy to interrupt. talkStart() begins a reply, talkPush() adds text,
    talkEnd() says "no more text is coming", and `after` runs when done. */
-const talker = { q:[], busy:false, open:false, after:null, gen:0, u:null, buf:'', iphone:false, src:null };
+const talker = { q:[], busy:false, open:false, after:null, gen:0, u:null, buf:'', iphone:false, src:null, aiQ:[], aiBusy:false, sentAi:false };
 let heardSound = false;                                   // becomes true once any speech has actually started
 function splitSentences(text){
   // a sentence ends at . ! ? followed by a space (so "2.5" and "3.14" aren't split)
@@ -836,7 +836,7 @@ function talkStart(after, opts = {}){
   stopRec();
   stopAiAudio();
   talker.gen++; talker.q = []; talker.busy = false; talker.open = true; talker.after = after || null;
-  talker.buf = ''; talker.iphone = !!opts.iphone;
+  talker.buf = ''; talker.iphone = !!opts.iphone; talker.aiQ = []; talker.aiBusy = false; talker.sentAi = false;
   // iPhone bug: calling cancel() right before speak() can make Safari silently drop the new speech,
   // so only cancel when something is really playing
   try{ if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); }catch(e){}
@@ -846,21 +846,58 @@ function talkPush(text){
   text = (text || '').trim();
   if(!text || !voiceOn) return;
   speaking = true;
-  if(useAiVoice() && !talker.iphone){ talker.buf += (talker.buf ? ' ' : '') + text; return; }   // collect, then say it all at once
+  if(useAiVoice() && !talker.iphone){
+    // AI voice: the FIRST sentence is sent off straight away so Gideon starts talking quickly;
+    // after that, sentences are grouped into bigger pieces (fewer requests, smoother speech)
+    talker.buf += (talker.buf ? ' ' : '') + text;
+    if(!talker.sentAi || talker.buf.length >= 100) aiFlush();
+    return;
+  }
   talker.q.push(...splitSentences(text));
   talkNext();
 }
 function talkEnd(){
   talker.open = false;
-  if(talker.buf){ const t = talker.buf; talker.buf = ''; playAi(t, talker.gen); return; }
-  if(!talker.busy && !talker.q.length) talkFinish(talker.gen);
+  if(talker.buf) aiFlush();
+  if(!talker.busy && !talker.q.length && !talker.aiBusy && !talker.aiQ.length) talkFinish(talker.gen);
+}
+// Start making the audio for this piece right now (in the background), and queue it to play in order
+function aiFlush(){
+  const text = talker.buf.trim(); talker.buf = '';
+  if(!text) return;
+  talker.sentAi = true;
+  talker.aiQ.push({ text, audio: ttsAudio(text).catch(e => e) });
+  aiNext(talker.gen);
+}
+async function aiNext(g){
+  if(talker.aiBusy || !talker.aiQ.length) return;
+  talker.aiBusy = true;
+  const item = talker.aiQ[0];
+  const buf = await item.audio;
+  if(g !== talker.gen) return;                            // interrupted while it was being made
+  talker.aiQ.shift();
+  if(buf instanceof Error){
+    // AI voice failed (no internet, free limit...): say this piece and everything still waiting with the iPhone voice
+    aiVoiceBroken = Date.now() + 10*60*1000;
+    console.warn('AI voice unavailable, using iPhone voice:', buf.message);
+    const rest = [item.text, ...talker.aiQ.map(x => x.text), talker.buf].filter(Boolean).join(' ');
+    talker.aiQ = []; talker.buf = ''; talker.iphone = true; talker.aiBusy = false;
+    talker.q.push(...splitSentences(rest));
+    talkNext();
+    return;
+  }
+  playBuffer(buf, g, ()=>{
+    talker.aiBusy = false;
+    if(talker.aiQ.length) aiNext(g);
+    else if(!talker.open && !talker.buf && !talker.busy && !talker.q.length) talkFinish(g);
+  });
 }
 function talkFinish(g){
   if(g !== talker.gen) return;
   speaking = false; lipQueue = [];
   if(!thinking) statusEl.textContent = 'Online';
   const a = talker.after; talker.after = null;
-  if(a) setTimeout(a, 250);
+  if(a) setTimeout(a, 550);
 }
 function talkNext(){
   if(talker.busy || !talker.q.length) return;
@@ -887,9 +924,10 @@ function talkNext(){
     talker.u = u;                                         // keep it alive (Safari can drop unreferenced speech)
     try{ if(speechSynthesis.paused) speechSynthesis.resume(); }catch(e){}
     speechSynthesis.speak(u);
+    // safety net: if this sentence still hasn't started after 5 s, the phone dropped it, so move on
     setTimeout(()=>{
-      if(!speechSynthesis.speaking && !speechSynthesis.pending){ if(!started && !heardSound) showVoiceProblem(); done(); }
-    }, 1500);
+      if(!started && !speechSynthesis.speaking && !speechSynthesis.pending){ if(!heardSound) showVoiceProblem(); done(); }
+    }, 5000);
   }catch(e){ showVoiceProblem(); done(); }
 }
 // Say one thing, then run `after`. opts.iphone forces the built-in voice.
@@ -906,7 +944,7 @@ const TTS_FALLBACK = ['gemini-3.8-flash-lite-tts','gemini-3.8-flash-tts','gemini
 const ttsCache = new Map();   // (v3.4: cache keys changed, old cached clips with the spoken style line are never reused)                              // short phrases ("Yes?") are only generated once
 let aiVoiceBroken = 0;                                    // time until which we skip the AI voice after failures
 function useAiVoice(){ return store.get('gideonEngine','gemini') === 'gemini' && !!store.get('gideonKey','') && Date.now() > aiVoiceBroken; }
-function stopAiAudio(){ if(talker.src){ try{ talker.src.onended = null; talker.src.stop(); }catch(e){} talker.src = null; } ttsPlaying = false; }
+function stopAiAudio(){ if(talker.src){ try{ talker.src.onended = null; talker.src.stop(); }catch(e){} talker.src = null; } ttsPlaying = false; talker.aiBusy = false; talker.aiQ = []; }
 
 async function ttsModels(){
   try{ const c = JSON.parse(store.get('gideonTTSModels','null')); if(c && Date.now() - c.at < 86400000 && c.list.length) return c.list; }catch(e){}
@@ -924,6 +962,19 @@ async function ttsModels(){
   return TTS_FALLBACK;
 }
 
+// Remove the quiet breathy bits at the start and end of a voice clip, then fade in/out
+// over 25 ms so the sound doesn't start or stop with a "puff".
+function cleanEdges(ch, rate){
+  const n = ch.length, win = Math.round(rate*0.01), th = 0.015;
+  const loud = i => { let m = 0; for(let k=i; k<Math.min(n,i+win); k++) m = Math.max(m, Math.abs(ch[k])); return m > th; };
+  let a = 0; while(a < n && !loud(a)) a += win;
+  let b = n - win; while(b > a && !loud(b)) b -= win;
+  a = Math.max(0, a - Math.round(rate*0.03)); b = Math.min(n, b + win + Math.round(rate*0.06));
+  for(let i=0;i<a;i++) ch[i] = 0;
+  for(let i=b;i<n;i++) ch[i] = 0;
+  const f = Math.round(rate*0.025);
+  for(let i=0;i<f;i++){ const g = i/f; if(a+i < n) ch[a+i] *= g; if(b-1-i >= 0) ch[b-1-i] *= g; }
+}
 async function ttsAudio(text){
   const voiceName = store.get('gideonAiVoice','Kore');
   const key = 'v34|' + voiceName + '|' + text;
@@ -951,6 +1002,7 @@ async function ttsAudio(text){
       const bin = atob(part.inlineData.data), n = bin.length >> 1;
       const buf = actx.createBuffer(1, n, rate), ch = buf.getChannelData(0);
       for(let i=0;i<n;i++){ let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if(v >= 32768) v -= 65536; ch[i] = v / 32768; }
+      cleanEdges(ch, rate);
       if(text.length < 40) ttsCache.set(key, buf);
       return buf;
     }catch(e){
@@ -962,32 +1014,34 @@ async function ttsAudio(text){
   throw lastErr || new Error('No AI voice available');
 }
 
-async function playAi(text, g){
-  talker.busy = true;
-  let buf;
-  try{ buf = await ttsAudio(text); }
-  catch(e){
-    if(g !== talker.gen) return;
-    aiVoiceBroken = Date.now() + 10*60*1000;              // rest the AI voice for 10 minutes
-    console.warn('AI voice unavailable, using iPhone voice:', e.message);
-    talker.busy = false;
-    talker.q.push(...splitSentences(text));               // say it with the iPhone voice instead
-    talkNext();
-    return;
-  }
-  if(g !== talker.gen) return;                            // interrupted while it was being made
+// Play one AI voice clip through the analyser (which moves the mouth), then call `after`
+async function playBuffer(buf, g, after){
   try{ if(actx.state === 'suspended') await actx.resume(); }catch(e){}
-  if(!ttsAnalyser){ ttsAnalyser = actx.createAnalyser(); ttsAnalyser.fftSize = 512; ttsWave = new Float32Array(ttsAnalyser.fftSize); ttsAnalyser.connect(actx.destination); }
+  clearTimeout(sleepTimer);
+  if(g !== talker.gen) return;
+  if(!ttsAnalyser){
+    ttsAnalyser = actx.createAnalyser(); ttsAnalyser.fftSize = 512; ttsWave = new Float32Array(ttsAnalyser.fftSize);
+    // gently cut very high hiss (the "wind" sound) above 9 kHz
+    const lp = actx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 9000; lp.Q.value = 0.5;
+    ttsAnalyser.connect(lp); lp.connect(actx.destination);
+  }
   const src = actx.createBufferSource(); src.buffer = buf; src.connect(ttsAnalyser);
   talker.src = src; ttsPlaying = true; heardSound = true; note('');
   statusEl.textContent = 'Speaking';
-  src.onended = ()=>{ if(talker.src !== src) return; talker.src = null; ttsPlaying = false; talker.busy = false; if(g === talker.gen) talkFinish(g); };
+  src.onended = ()=>{ if(talker.src !== src) return; talker.src = null; ttsPlaying = false; if(g === talker.gen){ after(); sleepAudioSoon(); } };
   src.start();
+}
+// Turn the sound engine off when it's not needed, so the iPhone doesn't keep an audio
+// channel open (switching between speaker and microphone is what makes a rushing sound)
+let sleepTimer = null;
+function sleepAudioSoon(){
+  clearTimeout(sleepTimer);
+  sleepTimer = setTimeout(()=>{ try{ if(actx && actx.state === 'running' && !ttsPlaying && !speaking) actx.suspend(); }catch(e){} }, 2500);
 }
 // Stop talking right now (tap on the head, mic button, mute)
 function stopTalking(){
   stopAiAudio();
-  talker.gen++; talker.q = []; talker.busy = false; talker.open = false; talker.after = null; talker.buf = '';
+  talker.gen++; talker.q = []; talker.busy = false; talker.open = false; talker.after = null; talker.buf = ''; sleepAudioSoon();
   try{ speechSynthesis.cancel(); }catch(e){}
   speaking = false; lipQueue = [];
   if(!thinking) statusEl.textContent = 'Online';
@@ -1234,7 +1288,7 @@ function startRec(mode){
   r.lang = /^en/i.test(navigator.language || '') ? navigator.language : 'en-US';
   r.interimResults = true; r.maxAlternatives = 3;
   r.continuous = true;          // keep listening through short pauses instead of cutting you off mid-sentence
-  let heard = '';
+  let heard = '', allFinal = false;
   curHeard = '';
   if(mode === 'query'){
     micBtn.classList.add('live'); statusEl.textContent = 'Listening'; input.value = '';
@@ -1252,12 +1306,20 @@ function startRec(mode){
       else if(!text.toLowerCase().endsWith(t.toLowerCase())) text += (text ? ' ' : '') + t;
     }
     heard = text.replace(/\s+/g,' ').trim(); curHeard = heard;
+    allFinal = ev.results.length > 0 && ev.results[ev.results.length-1].isFinal;   // has the phone settled on its final words?
     clearTimeout(pauseTimer);
     if(mode === 'query'){
       input.value = heard;
       heardEl.textContent = heard ? '“' + heard.slice(-70) + '”' : heardEl.textContent;
       const follow = listenFollow;
-      pauseTimer = setTimeout(()=>{ stopRec(); if(heard) handleHeard(heard, follow); }, pauseMs());   // you stopped talking: send it
+      // you stopped talking: send it, but first give the phone up to 0.8 s more to swap its
+      // quick guess for its corrected final words (the final version is more accurate)
+      let waited = 0;
+      const finish = ()=>{
+        if(!allFinal && waited < 800){ waited += 200; pauseTimer = setTimeout(finish, 200); return; }
+        stopRec(); if(heard) handleHeard(heard, follow);
+      };
+      pauseTimer = setTimeout(finish, pauseMs());
     } else {
       heardEl.textContent = 'Heard: ' + heard.slice(-60);
       // also check the phone's 2nd and 3rd guesses for "Gideon" (it's an unusual word)
@@ -1409,6 +1471,7 @@ function unlockAudio(){
 }
 function chime(){                                     // three soft beeps, made from sine waves
   if(!actx) return;
+  try{ if(actx.state === 'suspended') actx.resume(); }catch(e){}
   try{
     const t0 = actx.currentTime;
     [0, 0.32, 0.64].forEach((d, i)=>{
@@ -1514,6 +1577,7 @@ function needsSearch(text){
 }
 let searchOK = true;    // turns off automatically if web search isn't free for this key
 
+const HEARD_NOTE = '\nTheir latest message came through speech recognition, so some words may be misheard (for example similar-sounding words, names, or missing punctuation). Work out what they most likely meant and answer that directly. Only if it is truly unclear, ask a short question to check.';
 const FOLLOW_NOTE = '\nThis latest message was picked up by an open microphone during a follow-up, without your name being said. If it is clearly not meant for you (they are talking to someone else, a TV, background chatter, or it is meaningless), reply with only [IGNORE] and nothing else.';
 const cleanMd = s => s.replace(/[*#`]/g, '').trim();   // drop markdown symbols (keep _ so links survive)
 
@@ -1718,7 +1782,7 @@ async function sendText(text, opts = {}){
   };
   let reply;
   try{
-    reply = applyActions(await askGemini(onText, opts.follow ? FOLLOW_NOTE : '', needsSearch(text)) || '');
+    reply = applyActions(await askGemini(onText, (opts.voice ? HEARD_NOTE : '') + (opts.follow ? FOLLOW_NOTE : ''), needsSearch(text)) || '');
     if(lastFlags.ignore && !reply){                      // not meant for Gideon: quietly go back to standby
       history.pop(); saveChat();
       bubble.remove(); youEl.classList.add('ignored');
