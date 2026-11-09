@@ -42,6 +42,8 @@
   .msg { max-width:85%; padding:10px 14px; border-radius:14px; line-height:1.45; font-size:15px; white-space:pre-wrap; word-wrap:break-word; }
   .you { align-self:flex-end; background:#12304a; border:1px solid #1f4d73; }
   .ai  { align-self:flex-start; background:rgba(95,212,255,.06); border:1px solid rgba(95,212,255,.35); box-shadow:0 0 14px rgba(95,212,255,.12) inset; }
+  .openBtn { display:inline-block; margin-top:8px; padding:6px 12px; border:1px solid var(--glow); border-radius:14px; color:var(--glow); text-decoration:none;
+    font-family:Orbitron,sans-serif; font-size:11px; letter-spacing:.12em; }
   .play { height:auto; padding:2px 8px; margin-left:8px; font-size:9px; border-radius:10px; vertical-align:middle; }
   #voicenote { display:none; text-align:center; color:#ffd27a; font-size:12px; padding:4px 16px; }
   .ai .who { font-family:Orbitron,sans-serif; font-size:10px; letter-spacing:.3em; color:var(--glow); display:block; margin-bottom:4px; }
@@ -158,11 +160,29 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v2.5</div>
+  <div class="ver">GIDEON v2.6</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
+/* Phone actions: Gideon can't touch the phone itself, but it can hand back
+   a special link (mailto:, sms:, spotify:, maps: ...). Opening that link
+   starts the right app with everything filled in. The website shows it as
+   an OPEN button; the Siri Shortcut opens it automatically. */
+const PHONE_RULES = `
+Phone actions: when they ask you to do something on their phone (play music, write an email or text, call someone, get directions, open an app, document or website), reply in a few words (for example "Opening Spotify now.") and add exactly one tag [OPEN: url] using one of these formats, with spaces written as %20:
+- Email: mailto:ADDRESS?subject=SUBJECT&body=BODY (leave ADDRESS empty if you don't know it)
+- Text message: sms:NUMBER&body=MESSAGE (or sms:&body=MESSAGE if you don't know the number)
+- Phone call: tel:NUMBER
+- Apple Music: music://music.apple.com/search?term=WORDS
+- Spotify: spotify:search:WORDS
+- YouTube: https://m.youtube.com/results?search_query=WORDS
+- Directions: maps://?daddr=PLACE
+- Files app (documents): shareddocuments://
+- Google Docs: googledocs://
+- A website: its normal https:// address
+Use Apple Music for music unless they say Spotify or YouTube. You can't send or play anything by yourself: the app opens ready, and they tap Send or Play, so say so if it matters. Only add [OPEN] when they ask for one of these.`;
+
 const SYSTEM = `You are Gideon, an advanced artificial intelligence that serves as a personal assistant and ship's-computer-style companion. You are an original character created by Liam. The person you are speaking with is named {NAME}. They live in {CITY}; assume that location for weather, time and local questions unless told otherwise.
 
 Personality:
@@ -186,7 +206,7 @@ Special abilities. Use these tags exactly; the app hides them and never reads th
 - Conversation: after you answer, the microphone stays open so they can reply without saying your name. When they are clearly finished (thanks, that's all, goodbye, see you), answer in a few words and add [END].
 - Notes and to-do list: to add an item, add [NOTE: the item]. When they finish or remove one, add [DONE: the item's number or words]. To clear the whole list, add [CLEARNOTES]. Their current list is given below; read it out when asked.
 - Briefing: if they say good morning or ask for a briefing or "what did I miss", give a short spoken briefing in 3 to 5 sentences: a greeting, today's date, today's weather for their city (look it up), any running timers, and up to three items from their list.
-- Mood: add [MOOD: alert] for warnings or urgent news, or [MOOD: happy] for good news and celebrations. Otherwise add no mood tag.`;
+- Mood: add [MOOD: alert] for warnings or urgent news, or [MOOD: happy] for good news and celebrations. Otherwise add no mood tag.` + PHONE_RULES;
 
 const log = document.getElementById('log');
 const form = document.getElementById('form');
@@ -1040,7 +1060,7 @@ function siriPersonality(){
   return `You are Gideon, a calm, precise, slightly formal AI assistant with a dry sense of humour, an original character created by Liam. You are talking to ${name}${city ? ' in ' + city : ''} through Siri, so your reply is read aloud. Answer in 1 to 3 short sentences. No markdown, no lists, no emojis. Be kind and appropriate for a teenager. When ${name} is clearly finished (thanks, that's all, goodbye, see you), reply in a few words and put [END] at the very end.`
     + (memory.length ? `\nThings you remember about ${name}: ` + memory.join('; ') + '.' : '')
     + (notes.length ? `\n${name}'s to-do list: ` + notes.map((n,k) => (k+1) + ') ' + n).join('; ') + '.' : '')
-    + '\nToday is ';
+    + PHONE_RULES;
 }
 for(const b of document.querySelectorAll('.copyBtn')){
   b.onclick = async ()=>{
@@ -1123,14 +1143,16 @@ renderTimers();
 /* Gideon's hidden [TAGS]. stripTags() just hides them (used while the
    answer is still streaming in). applyActions() acts on them once the
    whole answer has arrived, and returns the text to show and speak. */
-const TAG_RE = /\[\s*(TIMER|REMEMBER|FORGET|CANCEL|MOOD|END|IGNORE|NOTE|DONE|CLEARNOTES)\b\s*:?\s*([^\]]*)\]/gi;
-let lastFlags = {end:false, ignore:false};
+// Only these kinds of links may be opened (no javascript: or other tricks)
+const SAFE_LINK = /^(mailto:|sms:|tel:|music:|spotify:|maps:|shareddocuments:|googledocs:|https:\/\/)/i;
+const TAG_RE = /\[\s*(TIMER|REMEMBER|FORGET|CANCEL|MOOD|END|IGNORE|NOTE|DONE|CLEARNOTES|OPEN)\b\s*:?\s*([^\]]*)\]/gi;
+let lastFlags = {end:false, ignore:false, open:''};
 function stripTags(raw){
   return raw.replace(TAG_RE, '').replace(/\[[^\]]*$/, '')      // also hide a tag that's only half arrived
             .replace(/[ \t]{2,}/g, ' ').trim();
 }
 function applyActions(raw){
-  lastFlags = {end:false, ignore:false};
+  lastFlags = {end:false, ignore:false, open:''};
   raw.replace(TAG_RE, (all, kind, arg)=>{
     kind = kind.toUpperCase(); arg = (arg || '').trim();
     if(kind === 'TIMER'){
@@ -1146,6 +1168,7 @@ function applyActions(raw){
     else if(kind === 'NOTE'){ if(arg) addNote(arg); }
     else if(kind === 'DONE'){ if(arg) doneNote(arg); }
     else if(kind === 'CLEARNOTES'){ notes = []; saveNotes(); }
+    else if(kind === 'OPEN'){ if(SAFE_LINK.test(arg)) lastFlags.open = arg; }
     return '';
   });
   return stripTags(raw);
@@ -1193,7 +1216,7 @@ function needsSearch(text){
 let searchOK = true;    // turns off automatically if web search isn't free for this key
 
 const FOLLOW_NOTE = '\nThis latest message was picked up by an open microphone during a follow-up, without your name being said. If it is clearly not meant for you (they are talking to someone else, a TV, background chatter, or it is meaningless), reply with only [IGNORE] and nothing else.';
-const cleanMd = s => s.replace(/[*#_`]/g, '').trim();
+const cleanMd = s => s.replace(/[*#`]/g, '').trim();   // drop markdown symbols (keep _ so links survive)
 
 /* We use the *streaming* version of the API: Gemini sends the answer in
    small pieces as it writes it, and onText() is called with the text so
@@ -1358,6 +1381,13 @@ try{
 document.getElementById('clearChat').onclick = ()=>{ history = []; saveChat(); log.innerHTML = ''; settingsEl.classList.remove('show'); speak('Conversation cleared.'); };
 
 // opts.voice: it came from the microphone. opts.follow: heard during a follow-up, without "Gideon"
+function openLabel(url){
+  const map = [[/^mailto:/i,'EMAIL'],[/^sms:/i,'MESSAGES'],[/^tel:/i,'PHONE'],[/^music:/i,'APPLE MUSIC'],[/^spotify:/i,'SPOTIFY'],
+               [/youtube/i,'YOUTUBE'],[/^maps:/i,'MAPS'],[/^shareddocuments:/i,'FILES'],[/^googledocs:/i,'GOOGLE DOCS']];
+  for(const [re, name] of map) if(re.test(url)) return name;
+  return 'LINK';
+}
+
 async function sendText(text, opts = {}){
   text = (text || '').trim();
   if(!text || thinking) return;
@@ -1417,6 +1447,12 @@ async function sendText(text, opts = {}){
   saveChat();
   body.textContent = reply; log.scrollTop = log.scrollHeight;
   thinking = false; sendBtn.disabled = false;
+  if(lastFlags.open){
+    const a = document.createElement('a');
+    a.className = 'openBtn'; a.href = lastFlags.open; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = '▶ OPEN ' + openLabel(lastFlags.open);
+    bubble.appendChild(a);
+  }
   if(lastFlags.end){ convo = false; listenFollow = false; heardEl.textContent = ''; keepAwake(wakeOn); }   // they're done: back to wake word
   talkPush(reply.slice(spokenTo)); talkEnd();
 }

@@ -88,6 +88,29 @@ Tap the **Gideon** shortcut once. The first time, iPhone asks to use the microph
 
 ---
 
+## Part H: Let Gideon control your phone (music, email, texts, directions, apps)
+
+Gideon can't press buttons on your phone, but it can hand back a special **link** that opens the right app with everything filled in, for example `spotify:search:Imagine%20Dragons` or `mailto:?subject=Hi`. These steps make the shortcut open that link.
+
+> First, in Gideon tap **COPY SIRI PERSONALITY** again and paste it over the big Text block at the top of the shortcut. The new personality teaches Gideon these links.
+
+Add these **inside the Repeat**, right **after "Set variable Reply"** and before "Replace":
+1. **Match Text**: tap the pattern and paste `\[OPEN:\s*([^\]]+)\]`. Set the text it searches to **Reply**.
+2. **If**: **Matches** · **has any value**.
+3. Inside that If:
+   - **Get Group from Matched Text**: set it to **Group At Index 1**.
+   - **Open URLs**: set it to the **Text from Group** (it should fill in automatically).
+4. Leave **Otherwise** empty.
+
+Now try: *"Gideon, play Imagine Dragons on Spotify"*, *"write an email to my teacher saying I'll be late"*, *"directions to the CN Tower"* or *"open my documents"*.
+
+Things to know:
+- iPhone always lets **you** press the final **Send**, **Call** or **Play**. Gideon gets everything ready, but it can't send or call by itself. That's an Apple safety rule.
+- If your phone is locked, it asks you to unlock before opening the app.
+- It can open the **Files** or **Google Docs** app, but not a specific document by name.
+
+---
+
 ## Part G: Wake it by saying just "Gideon" (iOS 18+)
 1. **Settings** → **Accessibility** → **Vocal Shortcuts**.
 2. Tap **Set Up Vocal Shortcuts** (or **Add Action**), then **Shortcut**, then **Gideon**.
