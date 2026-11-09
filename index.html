@@ -96,6 +96,70 @@
   #notesList { white-space:pre-wrap; }
   .ver { text-align:center; font-family:Orbitron,sans-serif; letter-spacing:.3em; font-size:10px; color:#3a5a72; margin-top:10px; }
   @keyframes pulse { 50% { opacity:.4; } }
+
+  /* ================= v3.4 "SPEED LAB" HUD THEME =================
+     Blue hologram panels for Gideon, red-gold speedster panels for you,
+     angled sci-fi corners, an electric title and lightning accents. */
+  :root { --bolt:#ffcf3a; --speed:#ff3b2f; --panel:rgba(6,22,44,.72); }
+  h1 { background:linear-gradient(90deg,#3aa8ff 0%,#bff0ff 30%,#ffe27a 50%,#bff0ff 70%,#3aa8ff 100%); background-size:250% 100%;
+       -webkit-background-clip:text; background-clip:text; color:transparent; text-shadow:none;
+       filter:drop-shadow(0 0 8px rgba(80,180,255,.7)); animation:charge 6s linear infinite, flicker 7s infinite; }
+  @keyframes charge { to { background-position:-250% 0; } }
+  @keyframes flicker { 0%,92%,100% { opacity:1; } 93% { opacity:.55; } 94% { opacity:1; } 96% { opacity:.7; } }
+  header::after { content:''; display:block; height:2px; margin:8px auto 0; width:min(78%,320px);
+    background:linear-gradient(90deg,transparent,var(--glow),var(--bolt),var(--glow),transparent); background-size:200% 100%;
+    box-shadow:0 0 10px var(--glow); animation:charge 2.5s linear infinite; opacity:.85; }
+  #status { display:inline-flex; align-items:center; gap:7px; height:auto; padding:3px 12px; border:1px solid rgba(95,212,255,.25);
+    border-radius:20px; background:rgba(6,22,44,.6); color:#9fd8f5; }
+  #status::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--glow); box-shadow:0 0 8px var(--glow); animation:pulse 1.4s infinite; }
+
+  #log { padding:10px 14px 12px; gap:12px; }
+  .msg { position:relative; border-radius:0; max-width:88%; padding:11px 15px; font-size:15px; animation:materialize .35s ease-out; }
+  @keyframes materialize { from { opacity:0; transform:translateY(8px) scale(.98); filter:brightness(2.2); } to { opacity:1; transform:none; filter:none; } }
+  .ai { background:linear-gradient(135deg, rgba(20,80,140,.28), rgba(4,18,38,.82)),
+                   repeating-linear-gradient(0deg, rgba(95,212,255,.035) 0 1px, transparent 1px 3px);
+        border:none; box-shadow:none;
+        clip-path:polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+        outline:1px solid rgba(95,212,255,.0); }
+  .ai::before { content:''; position:absolute; inset:0; pointer-events:none;     /* glowing angled frame */
+    clip-path:inherit; padding:1px; background:linear-gradient(135deg, rgba(95,212,255,.9), rgba(95,212,255,.15) 40%, rgba(95,212,255,.15) 60%, rgba(95,212,255,.8));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; }
+  .ai::after { content:''; position:absolute; left:0; top:14px; bottom:14px; width:3px; background:var(--glow); box-shadow:0 0 10px var(--glow); }
+  .ai .who { letter-spacing:.35em; font-size:10px; display:flex; align-items:center; gap:8px; color:#8fe3ff; }
+  .ai .who::before { content:'◆'; color:var(--glow); text-shadow:0 0 6px var(--glow); font-size:8px; }
+  .you { background:linear-gradient(135deg, rgba(120,20,12,.55), rgba(40,8,6,.85)); border:none; color:#ffe9d6;
+         clip-path:polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px); }
+  .you::before { content:''; position:absolute; inset:0; pointer-events:none; padding:1px; clip-path:inherit;
+    background:linear-gradient(135deg, var(--bolt), rgba(255,59,47,.5) 50%, var(--speed));
+    -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite:xor; mask-composite:exclude; }
+  .you::after { content:'⚡'; position:absolute; right:6px; top:3px; font-size:9px; opacity:.8; }
+  .play { border-radius:0; clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%); padding:3px 12px; }
+  .openBtn { border-radius:0; clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%); background:rgba(95,212,255,.12); }
+  /* Gideon "typing": three charging bars */
+  .ai.typing .body { display:inline-flex; gap:4px; height:14px; align-items:flex-end; color:transparent; }
+  .ai.typing .body::before, .ai.typing .body::after, .ai.typing .who::after { content:''; }
+  .ai.typing .body { background:
+      linear-gradient(var(--glow),var(--glow)) 0 100%/4px 40% no-repeat,
+      linear-gradient(var(--glow),var(--glow)) 8px 100%/4px 70% no-repeat,
+      linear-gradient(var(--glow),var(--glow)) 16px 100%/4px 100% no-repeat; width:22px; animation:bars .9s infinite; }
+  @keyframes bars { 50% { opacity:.35; } }
+
+  form { background:linear-gradient(180deg, rgba(4,14,30,.65), rgba(2,6,14,.95)); border-top:1px solid rgba(95,212,255,.25);
+         box-shadow:0 -6px 20px rgba(20,120,255,.08); }
+  #input { border-radius:0; clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+           background:rgba(5,20,40,.9); border:1px solid rgba(95,212,255,.35); }
+  #voiceBtn, #micBtn, #wakeBtn { border-radius:0; width:44px; padding:0;
+           clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); background:rgba(95,212,255,.08); border:none; }
+  #micBtn.live, #wakeBtn.live { background:rgba(95,212,255,.35); animation:pulse 1.2s infinite; }
+  #send { border:none; border-radius:0; color:#1a0c00; font-weight:700;
+          background:linear-gradient(135deg, var(--bolt), #ff8a1e 60%, var(--speed));
+          clip-path:polygon(10px 0,100% 0,calc(100% - 10px) 100%,0 100%); padding:0 14px; letter-spacing:.08em; }
+  form { gap:6px; }
+  #gear { border-radius:0; clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%); width:40px; padding:0; border:none; background:rgba(95,212,255,.1); }
+  .hint { color:#4f7a96; }
+  #heard { color:#ffd27a; font-style:normal; letter-spacing:.02em; }
+  .card { border-radius:0; clip-path:polygon(18px 0,100% 0,100% calc(100% - 18px),calc(100% - 18px) 100%,0 100%,0 18px); border:1px solid rgba(95,212,255,.4); }
+  .card button { border-radius:0; clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%); }
 </style>
 </head>
 <body class="cold">
@@ -162,6 +226,12 @@
     <option value="1">Keep listening for follow-ups</option>
     <option value="0">Stop listening</option>
   </select>
+  <label>Listening patience (how long to wait after you stop talking)</label>
+  <select id="pauseIn">
+    <option value="1300">Quick (1.3 s)</option>
+    <option value="1900">Normal (1.9 s)</option>
+    <option value="2800">Patient (2.8 s), good if it cuts you off</option>
+  </select>
   <label>Memory (facts Gideon remembers about you)</label>
   <p id="memList"></p>
   <button type="button" id="forgetBtn">FORGET MEMORIES</button>
@@ -177,7 +247,7 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v3.3</div>
+  <div class="ver">GIDEON v3.4</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -493,6 +563,42 @@ function lipStartWord(text, charIndex){
 function lipWholeText(text){ lipQueue = shapesFor(text, performance.now()); }
 
 const wcv = document.getElementById('wisps'), wcx = wcv.getContext('2d');
+/* Lightning: a jagged bolt flashes across the scene (when you send a message, and at boot).
+   Each bolt is a list of points made by splitting a line again and again and nudging the middle. */
+let bolts = [];
+function zap(){
+  const W = wcv.clientWidth || 360, Hh = wcv.clientHeight || 360;
+  const make = (x1,y1,x2,y2,rough)=>{
+    let pts = [[x1,y1],[x2,y2]];
+    for(let g=0; g<6; g++){
+      const out = [];
+      for(let i=0;i<pts.length-1;i++){
+        const [ax,ay]=pts[i], [bx,by]=pts[i+1];
+        out.push([ax,ay], [(ax+bx)/2 + (Math.random()-0.5)*rough, (ay+by)/2 + (Math.random()-0.5)*rough]);
+      }
+      out.push(pts[pts.length-1]); pts = out; rough *= 0.55;
+    }
+    return pts;
+  };
+  const leftToRight = Math.random() < 0.5, y1 = Hh*(0.15+Math.random()*0.5), y2 = Hh*(0.25+Math.random()*0.6);
+  const main = make(leftToRight ? -10 : W+10, y1, leftToRight ? W+10 : -10, y2, 70);
+  bolts.push({pts: main, born: performance.now(), w: 2.2});
+  const k = 8 + Math.floor(Math.random()*20), [bx,by] = main[k];             // a little side branch
+  bolts.push({pts: make(bx, by, bx + (Math.random()-0.5)*120, by + 40 + Math.random()*60, 40), born: performance.now(), w: 1.2});
+}
+function drawBolts(){
+  const now = performance.now();
+  bolts = bolts.filter(b => now - b.born < 420);
+  for(const b of bolts){
+    const age = (now - b.born)/420, a = (1-age) * (age < 0.15 || (age > 0.3 && age < 0.4) ? 1 : 0.45);   // flickers
+    wcx.lineJoin = 'round';
+    for(const [col, w, blur] of [['rgba(255,190,40,'+a*0.6+')', b.w*4, 18], ['rgba(255,245,200,'+a+')', b.w, 6]]){
+      wcx.strokeStyle = col; wcx.lineWidth = w; wcx.shadowColor = '#ffc23a'; wcx.shadowBlur = blur;
+      wcx.beginPath(); b.pts.forEach(([x,y],i)=> i ? wcx.lineTo(x,y) : wcx.moveTo(x,y)); wcx.stroke();
+    }
+  }
+}
+
 // Behind the face: the script's five broad flowing lines (at heights -2.2, -1.1, 0.2, 1.35, 2.35)
 function drawWisps(){
   const W = wcv.clientWidth, Hh = wcv.clientHeight;
@@ -511,6 +617,7 @@ function drawWisps(){
     wcx.lineWidth = 1.4; wcx.shadowColor='#0a6bff'; wcx.shadowBlur=10;
     wcx.stroke();
   });
+  if(bolts.length) drawBolts();
 }
 
 /* In front of the face: the script's wet glass, water beads and short frost streaks.
@@ -794,9 +901,9 @@ function speak(text, after, opts){ talkStart(after, opts); talkPush(text); talkE
    3. We turn those numbers into a sound and play it with WebAudio, through an
       "analyser" that measures loudness, which moves Gideon's mouth.
    If anything fails (no internet, free limit reached), we use the iPhone voice instead. */
-const AI_STYLE = 'Say this in a calm, warm, precise and slightly formal voice, like a friendly starship computer: ';
+// No style sentence: some voice models read it out loud. The chosen voice (Setup) sets the tone.
 const TTS_FALLBACK = ['gemini-3.8-flash-lite-tts','gemini-3.8-flash-tts','gemini-3.1-flash-tts-preview','gemini-2.5-flash-preview-tts'];
-const ttsCache = new Map();                              // short phrases ("Yes?") are only generated once
+const ttsCache = new Map();   // (v3.4: cache keys changed, old cached clips with the spoken style line are never reused)                              // short phrases ("Yes?") are only generated once
 let aiVoiceBroken = 0;                                    // time until which we skip the AI voice after failures
 function useAiVoice(){ return store.get('gideonEngine','gemini') === 'gemini' && !!store.get('gideonKey','') && Date.now() > aiVoiceBroken; }
 function stopAiAudio(){ if(talker.src){ try{ talker.src.onended = null; talker.src.stop(); }catch(e){} talker.src = null; } ttsPlaying = false; }
@@ -819,7 +926,7 @@ async function ttsModels(){
 
 async function ttsAudio(text){
   const voiceName = store.get('gideonAiVoice','Kore');
-  const key = voiceName + '|' + text;
+  const key = 'v34|' + voiceName + '|' + text;
   if(ttsCache.has(key)) return ttsCache.get(key);
   if(!actx) throw new Error('Sound not unlocked yet');
   let lastErr = null;
@@ -830,7 +937,7 @@ async function ttsAudio(text){
         method:'POST', signal: ctl.signal,
         headers:{ 'Content-Type':'application/json', 'x-goog-api-key': store.get('gideonKey','').trim() },
         body: JSON.stringify({
-          contents:[{ parts:[{ text: AI_STYLE + text }] }],
+          contents:[{ parts:[{ text }] }],
           generationConfig:{ responseModalities:['AUDIO'], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName } } } }
         })
       });
@@ -931,6 +1038,7 @@ function openSettings(){
   nameIn.value = store.get('gideonName','Liam');
   cityIn.value = store.get('gideonCity','');
   document.getElementById('convoIn').value = store.get('gideonConvo','1');
+  document.getElementById('pauseIn').value = store.get('gideonPause','1900');
   document.getElementById('engineIn').value = store.get('gideonEngine','gemini');
   document.getElementById('aiVoiceIn').value = store.get('gideonAiVoice','Kore');
   rateIn.value = store.get('gideonRate','0.98'); pitchIn.value = store.get('gideonPitch','1.05'); showVals();
@@ -944,6 +1052,7 @@ document.getElementById('saveSet').onclick = ()=>{
   store.set('gideonName', nameIn.value.trim() || 'Liam');
   store.set('gideonCity', cityIn.value.trim());
   store.set('gideonConvo', document.getElementById('convoIn').value);
+  store.set('gideonPause', document.getElementById('pauseIn').value);
   applyVoiceSettings();
   settingsEl.classList.remove('show');
   speak('Configuration saved. All systems online.');
@@ -993,7 +1102,7 @@ document.getElementById('boot').onclick = (e)=>{
     logEl.appendChild(row);
   }, 120 + k*270));
   requestAnimationFrame(()=> document.querySelector('#bootBar i').style.width = '100%');
-  setTimeout(()=> document.body.classList.remove('cold'), 700);      // hologram fades in
+  setTimeout(()=>{ document.body.classList.remove('cold'); zap(); }, 700);      // hologram fades in with a lightning strike
   setTimeout(()=>{
     boot.classList.add('out');
     setTimeout(()=> boot.remove(), 650);
@@ -1114,13 +1223,18 @@ setInterval(()=>{ if(wakeOn && recMode === 'wake' && Date.now() - lastStart > 50
 setInterval(()=>{ if(recMode === 'query' && !curHeard && Date.now() - listenStart > FOLLOW_MS + 3000){ convo ? endConvo(false) : (stopRec(), statusEl.textContent = 'Online', resumeWake()); } }, 1000);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ keepAwake(wakeOn || convo); setTimeout(resumeWake, 500); } });
 
+// How long a pause means "I'm finished talking" (Setup: Listening patience)
+function pauseMs(){ return parseInt(store.get('gideonPause','1900'), 10) || 1900; }
 function startRec(mode){
   if(!SR){ note('Voice input needs Safari. Open Gideon in Safari (not inside another app).'); return; }
   stopRec();
   recMode = mode;
   const r = new SR(); rec = r;
-  r.lang = 'en-US'; r.interimResults = true; r.continuous = (mode === 'wake');
-  let finals = '', heard = '';
+  // your phone's own English accent (e.g. en-CA) is recognised better than always en-US
+  r.lang = /^en/i.test(navigator.language || '') ? navigator.language : 'en-US';
+  r.interimResults = true; r.maxAlternatives = 3;
+  r.continuous = true;          // keep listening through short pauses instead of cutting you off mid-sentence
+  let heard = '';
   curHeard = '';
   if(mode === 'query'){
     micBtn.classList.add('live'); statusEl.textContent = 'Listening'; input.value = '';
@@ -1128,20 +1242,27 @@ function startRec(mode){
   }
   else statusEl.textContent = 'Standing by';
   r.onresult = (ev)=>{
-    let interim = '';
-    for(let i = ev.resultIndex; i < ev.results.length; i++){
-      const res = ev.results[i];
-      if(res.isFinal) finals += res[0].transcript + ' '; else interim += res[0].transcript;
+    // Rebuild everything heard so far from ALL results. iPhone sometimes repeats earlier
+    // words inside later results, so if a new piece starts with what we already have, replace it.
+    let text = '';
+    for(let i = 0; i < ev.results.length; i++){
+      const t = ev.results[i][0].transcript.trim();
+      if(!t) continue;
+      if(text && t.toLowerCase().startsWith(text.toLowerCase())) text = t;
+      else if(!text.toLowerCase().endsWith(t.toLowerCase())) text += (text ? ' ' : '') + t;
     }
-    heard = (finals + interim).trim(); curHeard = heard;
+    heard = text.replace(/\s+/g,' ').trim(); curHeard = heard;
     clearTimeout(pauseTimer);
     if(mode === 'query'){
       input.value = heard;
+      heardEl.textContent = heard ? '“' + heard.slice(-70) + '”' : heardEl.textContent;
       const follow = listenFollow;
-      pauseTimer = setTimeout(()=>{ stopRec(); if(heard) handleHeard(heard, follow); }, 1400);   // you paused: send it
+      pauseTimer = setTimeout(()=>{ stopRec(); if(heard) handleHeard(heard, follow); }, pauseMs());   // you stopped talking: send it
     } else {
       heardEl.textContent = 'Heard: ' + heard.slice(-60);
-      const m = findWake(heard);
+      // also check the phone's 2nd and 3rd guesses for "Gideon" (it's an unusual word)
+      let m = findWake(heard);
+      if(!m){ const last = ev.results[ev.results.length-1]; for(let a = 1; a < last.length && !m; a++) if(findWake(last[a].transcript)) m = { rest: '' }; }
       if(!m) return;
       pauseTimer = setTimeout(()=>{
         const after = (findWake(heard) || m).rest.trim();
@@ -1583,12 +1704,14 @@ async function sendText(text, opts = {}){
   }
   history.push({role:'user', content:text});
   thinking = true; sendBtn.disabled = true; statusEl.textContent = 'Processing';
-  const bubble = addMsg('ai', '…'), body = bubble.querySelector('.body');
+  const bubble = addMsg('ai', ''), body = bubble.querySelector('.body');
+  bubble.classList.add('typing'); zap();
   let spokenTo = 0;                                       // how much of the answer has been sent to the voice
   talkStart(afterReply);
   const onText = (raw)=>{
     const shown = stripTags(raw);
     if(!shown) return;
+    bubble.classList.remove('typing');
     body.textContent = shown; log.scrollTop = log.scrollHeight;
     let m;                                                // speak each sentence as soon as it's complete
     while((m = shown.slice(spokenTo).match(/^[\s\S]*?[.!?…]+["')\]]*\s+/))){ talkPush(m[0]); spokenTo += m[0].length; }
@@ -1623,6 +1746,7 @@ async function sendText(text, opts = {}){
     talkStart(afterReply);                                // drop anything half-spoken, say the error instead
   }
   saveChat();
+  bubble.classList.remove('typing');
   body.textContent = reply; log.scrollTop = log.scrollHeight;
   thinking = false; sendBtn.disabled = false;
   if(lastFlags.open){
