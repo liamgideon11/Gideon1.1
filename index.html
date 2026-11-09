@@ -25,16 +25,17 @@
   h1 { font-family:Orbitron,sans-serif; letter-spacing:.5em; font-size:20px; margin:0; color:var(--glow); text-shadow:0 0 12px var(--glow); padding-left:.5em; }
   #status { font-size:11px; letter-spacing:.25em; text-transform:uppercase; color:var(--dim); margin-top:6px; height:14px; }
 
+  /* The scene from the revised script: an almost-black deep blue background with a few broad
+     glowing lines behind the face, and a wet glass layer IN FRONT of the face (#glass canvas)
+     with water droplets dense on both sides, a few over the face, and short glowing frost streaks. */
   #stage { position:relative; height:365px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; overflow:hidden;
-    background-color:#8fa6c4;
-    background-image:
-      radial-gradient(circle at 14px 14px, #eef4fc 0, #c3d2e4 2.5px, #8399b8 6.5px, transparent 7.5px),
-      radial-gradient(circle at 17px 17px, rgba(35,55,85,.38) 0, rgba(35,55,85,.38) 7px, transparent 9px);
-    background-size:34px 34px; }
-  #stage::after { content:''; position:absolute; inset:0; pointer-events:none;
-    background: radial-gradient(ellipse at 50% 45%, rgba(220,235,255,.35), rgba(220,235,255,0) 55%),
-                linear-gradient(to bottom, rgba(3,6,13,0) 75%, var(--bg) 100%),
+    background-color:#01040c;
+    background-image: radial-gradient(ellipse at 50% 42%, rgba(30,110,220,.22), rgba(30,110,220,0) 55%); }
+  #glass { position:absolute; inset:0; width:100%; height:100%; z-index:2; pointer-events:none; }
+  #stage::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:3;
+    background: linear-gradient(to bottom, rgba(3,6,13,0) 75%, var(--bg) 100%),
                 linear-gradient(to top, rgba(3,6,13,0) 85%, var(--bg) 100%); }
+  #orb { filter: drop-shadow(0 0 12px rgba(40,150,255,.55)); }
   #wisps { position:absolute; inset:0; width:100%; height:100%; }
   #orb { position:relative; z-index:1; width:360px; height:360px; }
 
@@ -42,6 +43,8 @@
   .msg { max-width:85%; padding:10px 14px; border-radius:14px; line-height:1.45; font-size:15px; white-space:pre-wrap; word-wrap:break-word; }
   .you { align-self:flex-end; background:#12304a; border:1px solid #1f4d73; }
   .ai  { align-self:flex-start; background:rgba(95,212,255,.06); border:1px solid rgba(95,212,255,.35); box-shadow:0 0 14px rgba(95,212,255,.12) inset; }
+  .openBtn { display:inline-block; margin-top:8px; padding:6px 12px; border:1px solid var(--glow); border-radius:14px; color:var(--glow); text-decoration:none;
+    font-family:Orbitron,sans-serif; font-size:11px; letter-spacing:.12em; }
   .play { height:auto; padding:2px 8px; margin-left:8px; font-size:9px; border-radius:10px; vertical-align:middle; }
   #voicenote { display:none; text-align:center; color:#ffd27a; font-size:12px; padding:4px 16px; }
   .ai .who { font-family:Orbitron,sans-serif; font-size:10px; letter-spacing:.3em; color:var(--glow); display:block; margin-bottom:4px; }
@@ -103,7 +106,7 @@
   <div id="status">Online</div>
 </header>
 
-<div id="stage"><canvas id="wisps"></canvas><canvas id="orb"></canvas></div>
+<div id="stage"><canvas id="wisps"></canvas><canvas id="orb"></canvas><canvas id="glass"></canvas></div>
 
 <div id="log"></div>
 <div id="heard"></div>
@@ -131,7 +134,24 @@
   <input id="nameIn" autocomplete="off">
   <label>Your city (for weather and local questions)</label>
   <input id="cityIn" autocomplete="off" placeholder="e.g. Ottawa">
-  <label>Voice</label>
+  <label>Voice type</label>
+  <select id="engineIn">
+    <option value="gemini">Gideon AI voice (most human, uses Gemini)</option>
+    <option value="iphone">iPhone voice (works offline, robotic)</option>
+  </select>
+  <label>AI voice</label>
+  <select id="aiVoiceIn">
+    <option value="Kore">Kore: calm and firm (recommended)</option>
+    <option value="Despina">Despina: smooth</option>
+    <option value="Vindemiatrix">Vindemiatrix: gentle</option>
+    <option value="Sulafat">Sulafat: warm</option>
+    <option value="Aoede">Aoede: breezy</option>
+    <option value="Leda">Leda: youthful</option>
+    <option value="Zephyr">Zephyr: bright</option>
+    <option value="Charon">Charon: deep, informative (male)</option>
+    <option value="Orus">Orus: firm (male)</option>
+  </select>
+  <label>iPhone voice (used when the AI voice isn't available)</label>
   <select id="voiceIn"></select>
   <label>Speed <span id="rateVal"></span></label>
   <input id="rateIn" type="range" min="0.7" max="1.3" step="0.05">
@@ -158,11 +178,29 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v2.5</div>
+  <div class="ver">GIDEON v3.1</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
+/* Phone actions: Gideon can't touch the phone itself, but it can hand back
+   a special link (mailto:, sms:, spotify:, maps: ...). Opening that link
+   starts the right app with everything filled in. The website shows it as
+   an OPEN button; the Siri Shortcut opens it automatically. */
+const PHONE_RULES = `
+Phone actions: when they ask you to do something on their phone (play music, write an email or text, call someone, get directions, open an app, document or website), reply in a few words (for example "Opening Spotify now.") and add exactly one tag [OPEN: url] using one of these formats, with spaces written as %20:
+- Email: mailto:ADDRESS?subject=SUBJECT&body=BODY (leave ADDRESS empty if you don't know it)
+- Text message: sms:NUMBER&body=MESSAGE (or sms:&body=MESSAGE if you don't know the number)
+- Phone call: tel:NUMBER
+- Apple Music: music://music.apple.com/search?term=WORDS
+- Spotify: spotify:search:WORDS
+- YouTube: https://m.youtube.com/results?search_query=WORDS
+- Directions: maps://?daddr=PLACE
+- Files app (documents): shareddocuments://
+- Google Docs: googledocs://
+- A website: its normal https:// address
+Use Apple Music for music unless they say Spotify or YouTube. You can't send or play anything by yourself: the app opens ready, and they tap Send or Play, so say so if it matters. Only add [OPEN] when they ask for one of these.`;
+
 const SYSTEM = `You are Gideon, an advanced artificial intelligence that serves as a personal assistant and ship's-computer-style companion. You are an original character created by Liam. The person you are speaking with is named {NAME}. They live in {CITY}; assume that location for weather, time and local questions unless told otherwise.
 
 Personality:
@@ -186,7 +224,7 @@ Special abilities. Use these tags exactly; the app hides them and never reads th
 - Conversation: after you answer, the microphone stays open so they can reply without saying your name. When they are clearly finished (thanks, that's all, goodbye, see you), answer in a few words and add [END].
 - Notes and to-do list: to add an item, add [NOTE: the item]. When they finish or remove one, add [DONE: the item's number or words]. To clear the whole list, add [CLEARNOTES]. Their current list is given below; read it out when asked.
 - Briefing: if they say good morning or ask for a briefing or "what did I miss", give a short spoken briefing in 3 to 5 sentences: a greeting, today's date, today's weather for their city (look it up), any running timers, and up to three items from their list.
-- Mood: add [MOOD: alert] for warnings or urgent news, or [MOOD: happy] for good news and celebrations. Otherwise add no mood tag.`;
+- Mood: add [MOOD: alert] for warnings or urgent news, or [MOOD: happy] for good news and celebrations. Otherwise add no mood tag.` + PHONE_RULES;
 
 const log = document.getElementById('log');
 const form = document.getElementById('form');
@@ -211,11 +249,51 @@ let voiceOn = true;
    4. Every frame: rotate the lower jaw by "level" (mouth opens
       when Gideon talks), sway the head, and draw it. */
 const EYE_X = 0.265, EYE_Y = 0.10, MOUTH_Y = -0.395;
-const FK = 1.32, FY0 = -0.08;   // face scale: bigger = features spread wider
+const FK = 1.16, FY0 = -0.08;   // face scale: bigger = features spread wider
 function fsp(x,y){ return [x/FK, (y-FY0)/FK + FY0]; }
 let t = 0, level = 0, blink = 0, nextBlink = 3;
 let dragX = 0, dragY = 0;
 const cv = document.getElementById('orb');
+/* ---------- Icy face, built from icy_face_3d_recreation_REVISED.py ----------
+   The revised script builds ONE continuous face from "metaballs": soft blobs whose
+   strength fades out from their centre. Where several overlap, their strengths add
+   up, and the surface is wherever the total reaches the threshold (0.78), so the
+   blobs melt into each other with no seams.
+   Each entry below is the script's  mb(location, radius, size_x, size_y, size_z),
+   with Blender's axes turned into ours: Blender x -> x, Blender z (up) -> y,
+   Blender -y (toward the camera) -> z. The script then stretches the face 1.08x tall. */
+const META = [   // [x, y, z], radius, [size x, size y, size z]
+  [[0,    0.35, -0.05], 1.55, [1.00, 1.22, 0.68]],   // main cranial mass
+  [[0,   -1.35,  0.05], 1.18, [0.82, 0.88, 0.60]],   // lower face and jaw
+  [[0,   -1.85,  0.05], 0.72, [0.72, 0.56, 0.56]],   // chin / lower jaw
+  [[-0.72,-0.28, 0.42], 0.70, [0.88, 0.72, 0.55]],   // left cheek
+  [[ 0.72,-0.28, 0.42], 0.70, [0.88, 0.72, 0.55]],   // right cheek
+  [[0,    0.22,  0.88], 0.46, [0.42, 0.78, 0.52]],   // nose bridge
+  [[0,   -0.22,  1.05], 0.38, [0.58, 0.40, 0.56]],   // nose tip
+  [[-0.60, 0.65, 0.60], 0.30, [0.82, 0.24, 0.32]],   // left brow ridge
+  [[ 0.60, 0.65, 0.60], 0.30, [0.82, 0.24, 0.32]],   // right brow ridge
+  [[0,   -0.78,  0.82], 0.34, [1.05, 0.22, 0.28]],   // lips
+  [[0,   -1.08,  0.75], 0.40, [0.82, 0.28, 0.32]],   // lower lip / chin
+  [[-1.42,-0.10, 0.02], 0.43, [0.38, 0.78, 0.34]],   // left ear
+  [[ 1.42,-0.10, 0.02], 0.43, [0.38, 0.78, 0.34]],   // right ear
+  [[0,    0.40, -0.60], 1.40, [0.95, 1.10, 0.90]],   // back of the skull (added: the script's face is shallow, but Gideon turns its head)
+];
+const META_THRESHOLD = 0.78, META_STIFF = 2.0, META_TALL = 1.08, META_REACH = 1.9;   // REACH: a blob's influence spreads ~1.9x its radius, so a lone blob's surface sits at about its radius (like Blender)
+// the script's almond eyes: (x, -1.05, .18) scaled (.38,.13,.20), set just slightly into the face
+const ICE_EYES = [[[-0.58,0.19,0.98],[0.38,0.20,0.13]], [[0.58,0.19,0.98],[0.38,0.20,0.13]]];
+const ICE_SCALE = 0.38, ICE_MOUTH_Y = -0.99;   // shrink to our scene size; where the lips meet (after the 1.08 stretch)
+// Below 0 = inside the face, above 0 = outside.
+function iceField(x,y,z){
+  y /= META_TALL;                                  // undo the 1.08x stretch to read the original blobs
+  let f = 0;
+  for(const [[cx,cy,cz], r, [sx,sy,sz]] of META){
+    const px=(x-cx)/sx, py=(y-cy)/sy, pz=(z-cz)/sz;
+    const R = r*(r > 0.6 ? META_REACH : 1.5), q = (px*px+py*py+pz*pz)/(R*R);   // small features spread less, so they stay crisp
+    if(q < 1){ const k = 1-q; f += META_STIFF*k*k*k; }   // each blob fades smoothly to nothing at its radius
+  }
+  return META_THRESHOLD - f;
+}
+
 let head3D = null;
 try { head3D = buildHead(); } catch(e){ console.warn('3D unavailable', e); }
 
@@ -224,65 +302,6 @@ function bump(x,y,cx,cy,sx,sy){ return Math.exp(-(((x-cx)**2)/(2*sx*sx) + ((y-cy
 
 // Turn a point on a plain ball into a point on a face.
 // Each line pushes the surface out (+) or in (-) with a soft bump.
-function sculpt(x,y,z,closed=0){   // closed: 0 = eyes open, 1 = eyes shut
-  let d = 0;
-  if(z > 0){
-    const fm = smooth(0.2, 0.75, z);
-    const [x0,y0] = [x,y];
-    [x,y] = fsp(x,y);    // sculpt features in 'face space'
-    let f = 0;
-    for(const s of [-1,1]){
-      const ex = s*EYE_X;
-      f -= 0.095*bump(x,y,ex,EYE_Y,0.13,0.085);          // eye socket
-      f += (0.060-0.012*closed)*bump(x,y,ex,EYE_Y-0.004,0.072,0.042);   // eyeball under the lids
-      f += 0.014*closed*bump(x,y,ex,EYE_Y+0.005,0.075,0.04);  // closed lid covering the eye
-      f += 0.012*bump(x,y,ex,EYE_Y+0.032-0.072*closed,0.08,0.016);    // upper eyelid edge (slides down to blink)
-      f -= 0.016*bump(x,y,ex+s*0.005,EYE_Y+0.068,0.085,0.018); // eyelid crease
-      f += 0.008*bump(x,y,ex,EYE_Y-0.045,0.075,0.016);   // lower eyelid
-      f -= 0.010*bump(x,y,ex,EYE_Y-0.085,0.07,0.03);     // under-eye softness
-      f += 0.028*bump(x,y,ex+s*0.02,0.235,0.15,0.045);   // soft brow
-      f += 0.050*bump(x,y,s*0.38,-0.01,0.11,0.07);       // cheekbone
-      f += 0.020*bump(x,y,s*0.30,-0.24,0.12,0.10);       // cheek fullness
-      f -= 0.016*bump(x,y,s*0.16,-0.29,0.025,0.08);      // smile line beside the nose
-      f -= 0.025*bump(x,y,s*0.60,0.22,0.10,0.12);        // temple
-      f += 0.035*bump(x,y,s*0.066,-0.205,0.034,0.032);   // side of the nostril
-      f -= 0.022*bump(x,y,s*0.034,-0.238,0.02,0.018);    // nostril opening
-      f += 0.010*bump(x,y,s*0.028,-0.355,0.022,0.018);   // cupid's bow peaks
-      f += 0.006*bump(x,y,s*0.022,-0.30,0.012,0.04);     // ridges under the nose
-    }
-    f += 0.018*bump(x,y,0,0.19,0.06,0.06);               // between the brows
-    f += 0.090*bump(x,y,0,-0.075,0.032,0.11);             // nose bridge
-    f += 0.120*bump(x,y,0,-0.19,0.045,0.045);            // nose tip
-    f -= 0.008*bump(x,y,0,-0.30,0.014,0.04);             // groove under the nose
-    f += 0.048*bump(x,y,0,MOUTH_Y+0.03,0.11,0.024);      // upper lip
-    f -= 0.034*bump(x,y,0,MOUTH_Y,0.135,0.012);          // line between lips
-    f += 0.055*bump(x,y,0,MOUTH_Y-0.038,0.095,0.026);    // lower lip
-    f -= 0.026*bump(x,y,0,-0.50,0.09,0.025);             // dip under the lip
-    f += 0.060*bump(x,y,0,-0.60,0.11,0.07);              // chin
-    d += f*fm;
-    x = x0; y = y0;
-  }
-  // ears
-  {
-    const side = smooth(0.80, 0.96, Math.abs(x));
-    const ez = (z+0.04)/0.075, ey = y/0.13, r = Math.sqrt(ez*ez+ey*ey);
-    let ear = 0.075*Math.exp(-(r*r)/(2*0.9*0.9));                 // ear base
-    ear += 0.030*Math.exp(-((r-1)**2)/(2*0.18*0.18));             // outer rim (helix)
-    ear -= 0.032*Math.exp(-(r*r)/(2*0.42*0.42));                  // bowl in the middle
-    ear += 0.022*Math.exp(-(ez*ez)/(2*0.5*0.5) - ((ey+1.0)**2)/(2*0.35*0.35)); // earlobe
-    d += ear*side;
-  }
-  x*=1+d; y*=1+d; z*=1+d;
-  // soft smile: lift the corners of the mouth
-  if(z > 0){ const [fx,fy] = fsp(x,y); y += 0.02*(bump(fx,fy,-0.13,MOUTH_Y,0.04,0.035)+bump(fx,fy,0.13,MOUTH_Y,0.04,0.035)); }
-  // overall head shape: rounded skull, tall forehead, narrower soft jaw
-  const jaw = smooth(-0.15,-0.9,y);
-  x *= (1 - 0.27*jaw) * 0.80;                          // round skull, softer jaw
-  z *= (z>0 ? (1 - 0.05*jaw) : (1 - 0.20*jaw)*0.97);   // rounder back of the head
-  y *= 1.07 - 0.04*smooth(0.2, 0.8, y);                // less egg-shaped
-  return [x,y,z];
-}
-
 function buildHead(){
   const renderer = new THREE.WebGLRenderer({canvas:cv, alpha:true, antialias:true});
   renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
@@ -311,61 +330,60 @@ function buildHead(){
     varying vec3 vN; varying vec3 vView; varying float vY; varying vec3 vP;
     void main(){
       vec3 n = normalize(vN);
-      float key  = max(dot(n, normalize(vec3(0.5,0.6,0.8))),0.0);
-      float fill = max(dot(n, normalize(vec3(-0.7,0.1,0.5))),0.0);
-      float light = clamp(0.02 + key*0.85 + fill*0.22, 0.0, 1.0);
-      light = pow(light, 1.3);
+      float key  = max(dot(n, normalize(vec3(0.0,0.53,0.85))),0.0);    // soft frontal cyan key, from above the camera
+      float fill = max(dot(n, normalize(vec3(-0.89,0.0,0.45))),0.0);   // blue fill from the left
+      float rimL = max(dot(n, normalize(vec3(0.95,0.35,-0.05))),0.0);   // rim light from the right
+      float topL = max(dot(n, normalize(vec3(0.0,0.98,0.2))),0.0);    // top ice glow
+      float light = clamp(0.08 + key*0.72 + fill*0.28 + rimL*0.30 + topL*0.25, 0.0, 1.0);
+      light = pow(light, 1.6);
       float fres = pow(1.0 - max(dot(n, vView),0.0), 2.6);
       // frosted ice-glass: pale blue in shadow, near-white in light
-      vec3 col = mix(vec3(0.16,0.28,0.50), vec3(0.86,0.94,1.0), light);
-      col += vec3(0.8,0.92,1.0)*fres*(0.55+uLevel*0.25);             // glowing edges
+      vec3 col = mix(vec3(0.04,0.16,0.36), vec3(0.32,0.73,1.0)*1.15, light) + vec3(0.03,0.14,0.25)*0.6;   // cold translucent face (0.32,0.73,1.0) + its faint glow
+      col += vec3(0.35,0.75,1.0)*fres*(0.8+uLevel*0.3);              // glowing blue edges
       col += vec3(1.0)*pow(key,20.0)*0.35;                           // glassy highlight
-      // faint light veins running through the glass
-      float v1 = sin(vP.x*23.0 + sin(vP.y*17.0 + uTime*0.6)*2.0 + vP.z*11.0);
-      float v2 = sin(vP.y*29.0 - sin(vP.x*13.0 - uTime*0.4)*2.5);
-      col += vec3(0.9,0.97,1.0)*(smoothstep(0.993,1.0,v1)+smoothstep(0.995,1.0,v2))*0.12;
+      // hologram texture: a faint shimmering grid of light dots, and now and then a digital flicker line
+      float grid = pow(abs(sin(vP.x*70.0)*sin(vP.y*70.0)*sin(vP.z*70.0)), 6.0);
+      col += vec3(0.75,0.9,1.0)*grid*0.10*(0.6 + 0.4*sin(uTime*1.7 + vP.y*3.0));
+      float glitchY = fract(uTime*0.13)*3.4 - 1.7;
+      float glitch = smoothstep(0.012, 0.0, abs(vY - glitchY)) * step(0.55, fract(sin(floor(uTime*0.13)*91.7)*437.5));
+      col += vec3(0.8,0.95,1.0)*glitch*0.35;
       float scan = 0.98 + 0.02*sin(vY*140.0 - uTime*4.0);            // very soft scanlines
       float band = smoothstep(0.12,0.0,abs(vY - (mod(uTime*0.45,3.2)-1.6)));
       col = col*scan + vec3(0.9,0.97,1.0)*band*0.07;
-      col = mix(col, vec3(0.2,0.3,0.45), clamp(vGap*uOpen*1.6,0.0,0.85)); // mouth opening
-      // iris + pupil, drawn around a point that moves with uLook (so the eyes can look around)
-      vec2 eL = vec2(-${EYE_X.toFixed(3)}, ${(EYE_Y-0.005).toFixed(3)}) + uLook, eR = vec2(${EYE_X.toFixed(3)}, ${(EYE_Y-0.005).toFixed(3)}) + uLook;
-      float iris = (bm(vFace, eL, vec2(0.03,0.028)) + bm(vFace, eR, vec2(0.03,0.028))) * vIris;
-      float pupil = (bm(vFace, eL, vec2(0.012,0.012)) + bm(vFace, eR, vec2(0.012,0.012))) * vIris;
-      col *= 1.0 - (0.38*smoothstep(0.2,0.9,iris) + 0.25*smoothstep(0.5,0.95,pupil))*(1.0-uBlink);
-      col += vec3(1.0)*bm(vFace, eL+vec2(0.008,0.010), vec2(0.005,0.005))*vIris*0.35*(1.0-uBlink);   // tiny catch-light
-      col += vec3(1.0)*bm(vFace, eR+vec2(0.008,0.010), vec2(0.005,0.005))*vIris*0.35*(1.0-uBlink);
+      col = mix(col, vec3(0.05,0.15,0.32), clamp(vGap*(0.35 + uOpen*1.6),0.0,0.85)); // line between the lips, darker when the mouth opens
+      // eyes: smooth and blank like a statue (no cartoon pupils), just a soft shadow in the socket
+      float eyeShade = (bm(vFace, vec2(-${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035)) + bm(vFace, vec2(${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035))) * smoothstep(0.35,0.7,vP.z);
+      col *= 1.0 - 0.06*eyeShade*(1.0-uBlink);
       col *= uTint;                                                  // mood colour
-      float a = 0.8 + fres*0.2;
+      float a = 0.62 + fres*0.33;                                     // see-through (alpha .62 + transmission in the script)
       if(uFade > 0.5) a *= smoothstep(-2.25, -1.7, vY);            // shoulders fade out
       gl_FragColor = vec4(col, a);
     }`;
   const mat = new THREE.ShaderMaterial({uniforms, vertexShader:vert, fragmentShader:frag, transparent:true});
 
-  // head mesh
-  const geo = new THREE.SphereGeometry(1, 240, 240);
+  // head mesh: a ball whose every point is pushed out until it touches the icy face shape
+  const geo = new THREE.SphereGeometry(1, 150, 150);
   geo.rotateY(-Math.PI/2);                       // hide the seam at the back
   const pos = geo.attributes.position;
-  const base = new Float32Array(pos.count*3), jawW = new Float32Array(pos.count), mouthW = new Float32Array(pos.count), gap = new Float32Array(pos.count), irisA = new Float32Array(pos.count), faceA = new Float32Array(pos.count*2), blinkD = new Float32Array(pos.count*3);
-  const moving = [];
-  for(let i=0;i<pos.count;i++){
+  const n = pos.count, S = ICE_SCALE;
+  const base = new Float32Array(n*3), jawW = new Float32Array(n), mouthW = new Float32Array(n), gap = new Float32Array(n),
+        irisA = new Float32Array(n), faceA = new Float32Array(n*2), blinkD = new Float32Array(n*3);
+  const moving = [], C = [0, -0.3, 0.25];        // a point inside the face to shoot rays from
+  for(let i=0;i<n;i++){
     const ux=pos.getX(i), uy=pos.getY(i), uz=pos.getZ(i);
-    const p = sculpt(ux,uy,uz);
-    const [fx,fy] = fsp(ux,uy);
-    base.set(p, i*3);
-    jawW[i] = smooth(MOUTH_Y+0.005,MOUTH_Y-0.02,fy) * smooth(-0.35,0.15,uz);   // which points belong to the jaw
-    mouthW[i] = bump(fx,fy,0,MOUTH_Y,0.16,0.08) * smooth(0.4,0.85,uz); // lips area
-    let eyeArea = 0;
-    if(uz > 0.5) eyeArea = Math.max(bump(fx,fy,-EYE_X,EYE_Y,0.14,0.12), bump(fx,fy,EYE_X,EYE_Y,0.14,0.12));
-    if(eyeArea > 0.002){                                   // where each eye point goes when the lid closes
-      const q = sculpt(ux,uy,uz,1);
-      blinkD[i*3]=q[0]-p[0]; blinkD[i*3+1]=q[1]-p[1]; blinkD[i*3+2]=q[2]-p[2];
-    }
-    if(jawW[i]>0.001 || mouthW[i]>0.001 || eyeArea>0.002) moving.push(i);   // only these points ever move
-    gap[i] = bump(fx,fy,0,MOUTH_Y,0.11,0.014) * smooth(0.5,0.85,uz);  // inside of the mouth
-    faceA[i*2] = fx; faceA[i*2+1] = fy;                    // face-space position, so the shader can draw irises anywhere
-    irisA[i] = Math.max(bump(fx,fy,-EYE_X,EYE_Y,0.075,0.05), bump(fx,fy,EYE_X,EYE_Y,0.075,0.05)) * smooth(0.5,0.85,uz); // where eyeballs are
-    pos.setXYZ(i,p[0],p[1],p[2]);
+    // march inward from far away until we're inside the shape, then narrow it down (bisection)
+    let r = 3.4, step = 0.06;
+    while(r > 0 && iceField(C[0]+ux*r, C[1]+uy*r, C[2]+uz*r) > 0) r -= step;
+    let lo = Math.max(r,0), hi = r + step;
+    for(let k=0;k<10;k++){ const m=(lo+hi)/2; if(iceField(C[0]+ux*m, C[1]+uy*m, C[2]+uz*m) > 0) hi = m; else lo = m; }
+    const x = C[0]+ux*lo, y = C[1]+uy*lo, z = C[2]+uz*lo;          // in the script's units
+    base.set([x*S, y*S, z*S], i*3);
+    pos.setXYZ(i, x*S, y*S, z*S);
+    // which points move when Gideon talks
+    jawW[i] = smooth(ICE_MOUTH_Y+0.08, ICE_MOUTH_Y-0.5, y) * smooth(-0.7, 0.5, z) * (0.3 + 0.7*Math.exp(-(x*x)/(2*0.7*0.7)));   // soft, so no crease
+    mouthW[i] = bump(x, y, 0, ICE_MOUTH_Y, 0.45, 0.22) * smooth(0.4, 0.85, z);
+    gap[i] = bump(x, y, 0, ICE_MOUTH_Y, 0.36, 0.04) * smooth(0.45, 0.85, z);    // inside of the mouth
+    if(jawW[i] > 0.001 || mouthW[i] > 0.001) moving.push(i);
   }
   geo.setAttribute('aGap', new THREE.BufferAttribute(gap,1));
   geo.setAttribute('aIris', new THREE.BufferAttribute(irisA,1));
@@ -374,13 +392,13 @@ function buildHead(){
   const group = new THREE.Group();
   const headMesh = new THREE.Mesh(geo, mat);
   const headGroup = new THREE.Group(); headGroup.add(headMesh);
-  headGroup.scale.setScalar(0.9); headGroup.position.y = 0.02;
+  headGroup.scale.setScalar(0.88); headGroup.position.y = -0.06;
   group.add(headGroup);
 
   // hologram dots overlay (shares the same geometry, so it moves with the jaw)
 
   // neck and shoulders: a profile line spun around (a "lathe"), then flattened front-to-back
-  const prof = [[0.30,-0.45],[0.31,-0.85],[0.33,-1.08],[0.40,-1.24],[0.62,-1.36],[1.0,-1.46],[1.32,-1.6],[1.48,-1.85],[1.52,-2.3]]
+  const prof = [[0.33,-0.40],[0.34,-0.78],[0.37,-1.00],[0.47,-1.18],[0.72,-1.32],[1.05,-1.43],[1.34,-1.58],[1.49,-1.85],[1.53,-2.3]]   // a sturdier, shorter neck
     .map(([r,y])=>new THREE.Vector2(r,y));
   const bustGeo = new THREE.LatheGeometry(prof, 96);
   const bp = bustGeo.attributes.position;
@@ -395,16 +413,32 @@ function buildHead(){
   const bustMat = mat.clone();
   bustMat.uniforms = {uTime:uniforms.uTime, uLevel:uniforms.uLevel, uFade:{value:1}, uOpen:{value:0}, uBlink:{value:0}, uTint:uniforms.uTint, uLook:{value:new THREE.Vector2(0,0)}};
   const bust = new THREE.Mesh(bustGeo, bustMat);
+  bust.renderOrder = 3;                              // drawn after the face, so the neck doesn't show through it
   bust.position.z = -0.1;
   group.add(bust);
 
-  const eyes = [];   // eyes are now sculpted into the glass
+  // glowing glass eyes ("Glass eye" in the script); they blink by squashing flat
+  const eyeMat = new THREE.ShaderMaterial({
+    transparent:true,
+    vertexShader:`varying vec3 vN; varying vec3 vV; void main(){ vec4 wp = modelMatrix*vec4(position,1.0); vN = normalize(mat3(modelMatrix)*normal); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix*viewMatrix*wp; }`,
+    fragmentShader:`uniform vec3 uTint; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - max(dot(normalize(vN), vV), 0.0), 2.0);
+      vec3 c = vec3(0.55,0.88,1.0)*0.45 + vec3(0.18,0.58,1.0)*0.5 + vec3(0.7,0.9,1.0)*f*0.5; gl_FragColor = vec4(c*uTint, 0.72); }`,
+    uniforms:{ uTint: uniforms.uTint }
+  });
+  const eyes = [];
+  for(const [[cx,cy,cz],[rx,ry,rz]] of ICE_EYES){
+    const e = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), eyeMat);
+    e.scale.set(rx*ICE_SCALE, ry*ICE_SCALE, rz*ICE_SCALE); e.position.set(cx*ICE_SCALE, cy*ICE_SCALE, cz*ICE_SCALE);
+    e.userData.sy = ry*ICE_SCALE; e.renderOrder = 2;
+    headGroup.add(e); eyes.push(e);
+  }
+  headMesh.renderOrder = 1;
   scene.add(group);
   // projector rings around the head
   const rings = [];
   for(const [r,y,sp] of [[1.35,-2.0,0.3],[1.55,-2.12,-0.2],[1.75,-2.24,0.45]]){
     const ring = new THREE.Mesh(new THREE.TorusGeometry(r,0.006,8,160),
-      new THREE.MeshBasicMaterial({color:0xeaf4ff, transparent:true, opacity:0.45, blending:THREE.AdditiveBlending, depthWrite:false}));
+      new THREE.MeshBasicMaterial({color:0x8fd0ff, transparent:true, opacity:0.45, blending:THREE.AdditiveBlending, depthWrite:false}));
     ring.rotation.x = Math.PI/2 - 0.12; ring.position.y = y; ring.userData.sp = sp;
     scene.add(ring); rings.push(ring);
   }
@@ -428,7 +462,8 @@ function buildHead(){
     lookAt((e.clientX - (r.left + r.width/2)) / (r.width/2), (e.clientY - (r.top + r.height*0.4)) / (r.height/2), 2500);
   });
 
-  return {renderer, scene, camera, group, geo, pos, base, jawW, mouthW, blinkD, moving, uniforms, eyes, rings, motes, frame:0};
+  return {renderer, scene, camera, group, geo, pos, base, jawW, mouthW, blinkD, moving, uniforms, eyes, rings, motes, frame:0,
+          pivot:[-0.40*ICE_SCALE, -0.15*ICE_SCALE]};   // the jaw hinges just in front of the ears
 }
 
 /* ---------- Lip sync ----------
@@ -440,6 +475,7 @@ function buildHead(){
 const VISEME = {a:[0.9,0], e:[0.5,-0.6], i:[0.35,-0.8], y:[0.35,-0.7], o:[0.7,0.85], u:[0.3,1], w:[0.25,1],
   m:[0,0], b:[0,0], p:[0,0], f:[0.12,-0.3], v:[0.12,-0.3], l:[0.35,0], r:[0.3,0.4], s:[0.15,-0.5], t:[0.2,-0.2], d:[0.25,-0.1], th:[0.2,-0.2]};
 let lipQueue = [], lipRate = 1, mouthOpen = 0, mouthRound = 0, gotBoundary = false;
+let ttsAnalyser = null, ttsPlaying = false, ttsWave = null;   // set while the AI voice is playing
 function shapesFor(word, startMs){
   const out = [], per = 62 / lipRate;           // ~62 ms per letter
   let tm = startMs;
@@ -458,23 +494,70 @@ function lipStartWord(text, charIndex){
 function lipWholeText(text){ lipQueue = shapesFor(text, performance.now()); }
 
 const wcv = document.getElementById('wisps'), wcx = wcv.getContext('2d');
+// Behind the face: the script's five broad flowing lines (at heights -2.2, -1.1, 0.2, 1.35, 2.35)
 function drawWisps(){
   const W = wcv.clientWidth, Hh = wcv.clientHeight;
   if(wcv.width !== W*2){ wcv.width = W*2; wcv.height = Hh*2; }
   wcx.setTransform(2,0,0,2,0,0); wcx.clearRect(0,0,W,Hh);
   wcx.lineCap='round';
-  for(let i=0;i<14;i++){
-    const y0 = (i/14)*Hh + Math.sin(t*0.3+i)*12;
+  const k = W/5.8;                                   // pixels per script unit
+  [-2.2,-1.1,0.2,1.35,2.35].forEach((z,i)=>{
+    const y0 = Hh*0.47 - z*k*0.75;
     wcx.beginPath();
     for(let x=-10;x<=W+10;x+=8){
-      const y = y0 + Math.sin(x*0.012 + t*0.7 + i*1.7)*18 + Math.sin(x*0.031 - t*0.5 + i)*6;
+      const y = y0 + Math.sin(x*0.010 + t*0.35 + i*1.7)*14 + Math.sin(x*0.027 - t*0.25 + i)*5;
       x<=-10 ? wcx.moveTo(x,y) : wcx.lineTo(x,y);
     }
-    wcx.strokeStyle = 'rgba(240,248,255,'+(0.10+0.08*Math.sin(t*0.8+i*2))+')';
-    wcx.lineWidth = 0.8 + (i%3)*0.6; wcx.shadowColor='#ffffff'; wcx.shadowBlur=6;
+    wcx.strokeStyle = 'rgba(64,150,255,'+(0.30+0.12*Math.sin(t*0.6+i*2))+')';
+    wcx.lineWidth = 1.4; wcx.shadowColor='#0a6bff'; wcx.shadowBlur=10;
     wcx.stroke();
-  }
+  });
 }
+
+/* In front of the face: the script's wet glass, water beads and short frost streaks.
+   Drawn once (and again if the size changes), with the same random seed every time. */
+const gcv = document.getElementById('glass'), gcx = gcv.getContext('2d');
+function seeded(a){ return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t2=Math.imul(a^a>>>15,1|a); t2=t2+Math.imul(t2^t2>>>7,61|t2)^t2; return ((t2^t2>>>14)>>>0)/4294967296; }; }
+function drawGlass(){
+  const W = gcv.clientWidth, Hh = gcv.clientHeight; if(!W) return;
+  gcv.width = W*2; gcv.height = Hh*2;
+  gcx.setTransform(2,0,0,2,0,0); gcx.clearRect(0,0,W,Hh);
+  const rnd = seeded(42), U = (a,b)=> a + rnd()*(b-a);
+  const k = W/5.8, X = x => W/2 + x*k, Y = z => Hh*0.47 - z*k*0.75;
+  gcx.fillStyle = 'rgba(26,90,158,0.10)'; gcx.fillRect(0,0,W,Hh);                 // the glass itself: a faint blue tint
+  const bead = (x, z, r)=>{
+    const px = X(x), py = Y(z), rr = Math.max(1.6, r*k*0.9);
+    gcx.fillStyle = 'rgba(0,6,20,0.35)';                                          // soft shadow below the bead
+    gcx.beginPath(); gcx.ellipse(px+rr*0.25, py+rr*0.35, rr, rr*1.05, 0, 0, 6.283); gcx.fill();
+    const g = gcx.createRadialGradient(px-rr*0.35, py-rr*0.4, rr*0.1, px, py, rr);
+    g.addColorStop(0, 'rgba(150,205,255,0.95)'); g.addColorStop(0.35, 'rgba(46,105,180,0.9)');
+    g.addColorStop(0.85, 'rgba(18,48,100,0.85)'); g.addColorStop(1, 'rgba(10,30,70,0.5)');
+    gcx.fillStyle = g; gcx.beginPath(); gcx.ellipse(px, py, rr, rr*1.05, 0, 0, 6.283); gcx.fill();
+    gcx.fillStyle = 'rgba(255,255,255,0.7)';                                      // tiny highlight
+    gcx.beginPath(); gcx.arc(px-rr*0.4, py-rr*0.45, rr*0.22, 0, 6.283); gcx.fill();
+  };
+  for(const side of [-1,1])                                                       // dense on both sides
+    for(let row=0; row<11; row++){
+      const z = -2.75 + row*0.55 + U(-0.08,0.08);
+      for(let col=0; col<5; col++) bead(side*(1.72 + col*0.48 + U(-0.08,0.08)), z, U(0.055,0.12));
+    }
+  for(let i=0;i<60;i++){                                                          // a few over the face, centre kept clear
+    const x = U(-1.65,1.65), z = U(-2.55,2.85), r = U(0.035,0.08);
+    if(Math.abs(x) < 0.55 && z > -0.9 && z < 1.15) continue;
+    bead(x, z, r);
+  }
+  gcx.lineCap = 'round'; gcx.shadowColor = '#1a7dff'; gcx.shadowBlur = 8;         // short glowing frost streaks at the sides
+  for(let i=0;i<26;i++){
+    const z = U(-3.1,3.2), x = i%2===0 ? U(-4.0,-2.0) : U(2.0,4.0);
+    const x1 = x+U(-0.8,0.8), z1 = z+U(-0.25,0.25), x2 = x+U(-1.4,1.4), z2 = z+U(-0.45,0.45);
+    gcx.strokeStyle = 'rgba(70,170,255,0.75)'; gcx.lineWidth = Math.max(0.7, U(0.006,0.018)*k*1.6);
+    gcx.beginPath(); gcx.moveTo(X(x),Y(z)); gcx.quadraticCurveTo(X(x1),Y(z1), X(x2),Y(z2)); gcx.stroke();
+  }
+  gcx.shadowBlur = 0;
+}
+drawGlass();
+window.addEventListener('resize', drawGlass);
+
 /* ---------- Mood colours ----------
    Each mood is a colour "tint" that multiplies the hologram's colour.
    [1,1,1] = no change (calm ice-blue). The tint eases smoothly
@@ -533,7 +616,13 @@ function animate(){
   updateMood(now); updateEyes(now);
   // find the mouth shape for right now
   let tgO = 0, tgR = 0;
-  if(speaking && lipQueue.length){
+  if(ttsPlaying && ttsAnalyser){
+    // AI voice: open the mouth by how loud the sound is right now (real lip-sync)
+    ttsAnalyser.getFloatTimeDomainData(ttsWave);
+    let sum = 0; for(let k=0;k<ttsWave.length;k++) sum += ttsWave[k]*ttsWave[k];
+    const rms = Math.sqrt(sum/ttsWave.length);
+    tgO = Math.min(1, rms*7); tgR = Math.sin(now/90)*0.35*tgO;
+  } else if(speaking && lipQueue.length){
     let cur = null; for(const f of lipQueue){ if(f.t <= now) cur = f; else break; }
     if(cur){ tgO = cur.open; tgR = cur.round; }
   }
@@ -543,7 +632,7 @@ function animate(){
   level += (target - level) * 0.2;
   if(head3D){
     const H = head3D;
-    const ang = mouthOpen*0.2, pyv=-0.26, pzv=-0.15;
+    const ang = mouthOpen*0.17, pyv=H.pivot[0], pzv=H.pivot[1];
     nextBlink -= 0.016;
     if(nextBlink<=0){ blink=1; nextBlink=2.5+Math.random()*4; }
     blink = Math.max(0, blink-0.11);
@@ -569,6 +658,7 @@ function animate(){
     H.uniforms.uOpen.value = mouthOpen;
     // blinking
     H.uniforms.uBlink.value = lid;
+    for(const e of H.eyes) e.scale.y = e.userData.sy*(1 - 0.92*lid);   // blink
     // sway, bob, drag
     dragX *= 0.985;
     H.group.rotation.y = Math.sin(t*0.4)*0.3 + dragX;
@@ -619,7 +709,7 @@ function voiceAvailable(){
    still arriving, avoids iPhone cutting off long speech, and makes it
    easy to interrupt. talkStart() begins a reply, talkPush() adds text,
    talkEnd() says "no more text is coming", and `after` runs when done. */
-const talker = { q:[], busy:false, open:false, after:null, gen:0, u:null };
+const talker = { q:[], busy:false, open:false, after:null, gen:0, u:null, buf:'', iphone:false, src:null };
 let heardSound = false;                                   // becomes true once any speech has actually started
 function splitSentences(text){
   // a sentence ends at . ! ? followed by a space (so "2.5" and "3.14" aren't split)
@@ -630,9 +720,11 @@ function splitSentences(text){
   }
   return out.map(x => x.trim()).filter(Boolean);
 }
-function talkStart(after){
+function talkStart(after, opts = {}){
   stopRec();
+  stopAiAudio();
   talker.gen++; talker.q = []; talker.busy = false; talker.open = true; talker.after = after || null;
+  talker.buf = ''; talker.iphone = !!opts.iphone;
   // iPhone bug: calling cancel() right before speak() can make Safari silently drop the new speech,
   // so only cancel when something is really playing
   try{ if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); }catch(e){}
@@ -641,11 +733,16 @@ function talkStart(after){
 function talkPush(text){
   text = (text || '').trim();
   if(!text || !voiceOn) return;
-  talker.q.push(...splitSentences(text));
   speaking = true;
+  if(useAiVoice() && !talker.iphone){ talker.buf += (talker.buf ? ' ' : '') + text; return; }   // collect, then say it all at once
+  talker.q.push(...splitSentences(text));
   talkNext();
 }
-function talkEnd(){ talker.open = false; if(!talker.busy && !talker.q.length) talkFinish(talker.gen); }
+function talkEnd(){
+  talker.open = false;
+  if(talker.buf){ const t = talker.buf; talker.buf = ''; playAi(t, talker.gen); return; }
+  if(!talker.busy && !talker.q.length) talkFinish(talker.gen);
+}
 function talkFinish(g){
   if(g !== talker.gen) return;
   speaking = false; lipQueue = [];
@@ -683,11 +780,102 @@ function talkNext(){
     }, 1500);
   }catch(e){ showVoiceProblem(); done(); }
 }
-// Say one thing, then run `after`
-function speak(text, after){ talkStart(after); talkPush(text); talkEnd(); }
+// Say one thing, then run `after`. opts.iphone forces the built-in voice.
+function speak(text, after, opts){ talkStart(after, opts); talkPush(text); talkEnd(); }
+
+/* ---------- Gideon AI voice (Gemini text-to-speech) ----------
+   1. Send the reply text to a Gemini "TTS" model, with a note about HOW to say it.
+   2. Google sends back raw audio (PCM: a long list of numbers, 24,000 per second).
+   3. We turn those numbers into a sound and play it with WebAudio, through an
+      "analyser" that measures loudness, which moves Gideon's mouth.
+   If anything fails (no internet, free limit reached), we use the iPhone voice instead. */
+const AI_STYLE = 'Say this in a calm, warm, precise and slightly formal voice, like a friendly starship computer: ';
+const TTS_FALLBACK = ['gemini-3.8-flash-lite-tts','gemini-3.8-flash-tts','gemini-3.1-flash-tts-preview','gemini-2.5-flash-preview-tts'];
+const ttsCache = new Map();                              // short phrases ("Yes?") are only generated once
+let aiVoiceBroken = 0;                                    // time until which we skip the AI voice after failures
+function useAiVoice(){ return store.get('gideonEngine','gemini') === 'gemini' && !!store.get('gideonKey','') && Date.now() > aiVoiceBroken; }
+function stopAiAudio(){ if(talker.src){ try{ talker.src.onended = null; talker.src.stop(); }catch(e){} talker.src = null; } ttsPlaying = false; }
+
+async function ttsModels(){
+  try{ const c = JSON.parse(store.get('gideonTTSModels','null')); if(c && Date.now() - c.at < 86400000 && c.list.length) return c.list; }catch(e){}
+  try{
+    const ctl = new AbortController(); setTimeout(()=> ctl.abort(), 6000);
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers:{ 'x-goog-api-key': store.get('gideonKey','').trim() }, signal: ctl.signal });
+    if(r.ok){
+      const d = await r.json();
+      const list = (d.models || []).map(m => m.name.replace(/^models\//,''))
+        .filter(n => /tts/.test(n) && !/pro/.test(n))
+        .sort((a,b) => (b.includes('lite') - a.includes('lite')) || (parseFloat(b.slice(7)) - parseFloat(a.slice(7))));
+      if(list.length){ store.set('gideonTTSModels', JSON.stringify({at: Date.now(), list})); return list; }
+    }
+  }catch(e){}
+  return TTS_FALLBACK;
+}
+
+async function ttsAudio(text){
+  const voiceName = store.get('gideonAiVoice','Kore');
+  const key = voiceName + '|' + text;
+  if(ttsCache.has(key)) return ttsCache.get(key);
+  if(!actx) throw new Error('Sound not unlocked yet');
+  let lastErr = null;
+  for(const model of (await ttsModels()).filter(m => !(tired[m] > Date.now())).slice(0, 3)){
+    const ctl = new AbortController(); const timer = setTimeout(()=> ctl.abort(), 15000);
+    try{
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method:'POST', signal: ctl.signal,
+        headers:{ 'Content-Type':'application/json', 'x-goog-api-key': store.get('gideonKey','').trim() },
+        body: JSON.stringify({
+          contents:[{ parts:[{ text: AI_STYLE + text }] }],
+          generationConfig:{ responseModalities:['AUDIO'], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName } } } }
+        })
+      });
+      clearTimeout(timer);
+      const data = await r.json().catch(()=> ({}));
+      if(!r.ok){ const e = new Error(data?.error?.message || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+      const part = (data?.candidates?.[0]?.content?.parts || []).find(p => p.inlineData && p.inlineData.data);
+      if(!part) throw new Error('No audio in reply');
+      // raw 16-bit PCM -> numbers between -1 and 1 -> an AudioBuffer we can play
+      const rate = parseInt((part.inlineData.mimeType.match(/rate=(\d+)/) || [])[1] || '24000', 10);
+      const bin = atob(part.inlineData.data), n = bin.length >> 1;
+      const buf = actx.createBuffer(1, n, rate), ch = buf.getChannelData(0);
+      for(let i=0;i<n;i++){ let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if(v >= 32768) v -= 65536; ch[i] = v / 32768; }
+      if(text.length < 40) ttsCache.set(key, buf);
+      return buf;
+    }catch(e){
+      clearTimeout(timer); lastErr = e;
+      if(e.status === 429) restModel(model, e);
+      if(e.status && e.status !== 429 && e.status !== 404 && e.status !== 400) break;   // not a "try another model" problem
+    }
+  }
+  throw lastErr || new Error('No AI voice available');
+}
+
+async function playAi(text, g){
+  talker.busy = true;
+  let buf;
+  try{ buf = await ttsAudio(text); }
+  catch(e){
+    if(g !== talker.gen) return;
+    aiVoiceBroken = Date.now() + 10*60*1000;              // rest the AI voice for 10 minutes
+    console.warn('AI voice unavailable, using iPhone voice:', e.message);
+    talker.busy = false;
+    talker.q.push(...splitSentences(text));               // say it with the iPhone voice instead
+    talkNext();
+    return;
+  }
+  if(g !== talker.gen) return;                            // interrupted while it was being made
+  try{ if(actx.state === 'suspended') await actx.resume(); }catch(e){}
+  if(!ttsAnalyser){ ttsAnalyser = actx.createAnalyser(); ttsAnalyser.fftSize = 512; ttsWave = new Float32Array(ttsAnalyser.fftSize); ttsAnalyser.connect(actx.destination); }
+  const src = actx.createBufferSource(); src.buffer = buf; src.connect(ttsAnalyser);
+  talker.src = src; ttsPlaying = true; heardSound = true; note('');
+  statusEl.textContent = 'Speaking';
+  src.onended = ()=>{ if(talker.src !== src) return; talker.src = null; ttsPlaying = false; talker.busy = false; if(g === talker.gen) talkFinish(g); };
+  src.start();
+}
 // Stop talking right now (tap on the head, mic button, mute)
 function stopTalking(){
-  talker.gen++; talker.q = []; talker.busy = false; talker.open = false; talker.after = null;
+  stopAiAudio();
+  talker.gen++; talker.q = []; talker.busy = false; talker.open = false; talker.after = null; talker.buf = '';
   try{ speechSynthesis.cancel(); }catch(e){}
   speaking = false; lipQueue = [];
   if(!thinking) statusEl.textContent = 'Online';
@@ -724,17 +912,22 @@ function fillVoices(){
 function showVals(){ document.getElementById('rateVal').textContent = '× ' + rateIn.value; document.getElementById('pitchVal').textContent = '× ' + pitchIn.value; }
 rateIn.oninput = pitchIn.oninput = showVals;
 function applyVoiceSettings(){
+  store.set('gideonEngine', document.getElementById('engineIn').value);
+  store.set('gideonAiVoice', document.getElementById('aiVoiceIn').value);
+  aiVoiceBroken = 0;                                      // give the AI voice a fresh try
   store.set('gideonVoice', voiceIn.value || '');
   store.set('gideonRate', rateIn.value); store.set('gideonPitch', pitchIn.value);
   pickVoice();
 }
-document.getElementById('testVoice').onclick = ()=>{ applyVoiceSettings(); speak('Hello. This is how I sound now.'); };
+document.getElementById('testVoice').onclick = ()=>{ unlockAudio(); applyVoiceSettings(); speak('Hello. This is how I sound now.'); };
 function openSettings(){
   keyIn.value = store.get('gideonKey','');
   modelIn.value = store.get('gideonModel','gemini-3.5-flash-lite');
   nameIn.value = store.get('gideonName','Liam');
   cityIn.value = store.get('gideonCity','');
   document.getElementById('convoIn').value = store.get('gideonConvo','1');
+  document.getElementById('engineIn').value = store.get('gideonEngine','gemini');
+  document.getElementById('aiVoiceIn').value = store.get('gideonAiVoice','Kore');
   rateIn.value = store.get('gideonRate','0.98'); pitchIn.value = store.get('gideonPitch','1.05'); showVals();
   fillVoices(); fillMemory(); fillNotes();
   settingsEl.classList.add('show');
@@ -776,7 +969,7 @@ document.getElementById('boot').onclick = (e)=>{
   if(boot.classList.contains('run')) return;
   boot.classList.add('run');
   unlockAudio(); powerUpSound();
-  speak('Initializing.');                                // a real word, spoken inside the tap, unlocks speech on iPhone
+  speak('Initializing.', null, {iphone:true});                                // a real word, spoken inside the tap, unlocks speech on iPhone
   const hasKey = !!store.get('gideonKey','');
   const lines = [
     ['NEURAL CORE', 'ONLINE', 'ok'],
@@ -1040,7 +1233,7 @@ function siriPersonality(){
   return `You are Gideon, a calm, precise, slightly formal AI assistant with a dry sense of humour, an original character created by Liam. You are talking to ${name}${city ? ' in ' + city : ''} through Siri, so your reply is read aloud. Answer in 1 to 3 short sentences. No markdown, no lists, no emojis. Be kind and appropriate for a teenager. When ${name} is clearly finished (thanks, that's all, goodbye, see you), reply in a few words and put [END] at the very end.`
     + (memory.length ? `\nThings you remember about ${name}: ` + memory.join('; ') + '.' : '')
     + (notes.length ? `\n${name}'s to-do list: ` + notes.map((n,k) => (k+1) + ') ' + n).join('; ') + '.' : '')
-    + '\nToday is ';
+    + PHONE_RULES;
 }
 for(const b of document.querySelectorAll('.copyBtn')){
   b.onclick = async ()=>{
@@ -1123,14 +1316,16 @@ renderTimers();
 /* Gideon's hidden [TAGS]. stripTags() just hides them (used while the
    answer is still streaming in). applyActions() acts on them once the
    whole answer has arrived, and returns the text to show and speak. */
-const TAG_RE = /\[\s*(TIMER|REMEMBER|FORGET|CANCEL|MOOD|END|IGNORE|NOTE|DONE|CLEARNOTES)\b\s*:?\s*([^\]]*)\]/gi;
-let lastFlags = {end:false, ignore:false};
+// Only these kinds of links may be opened (no javascript: or other tricks)
+const SAFE_LINK = /^(mailto:|sms:|tel:|music:|spotify:|maps:|shareddocuments:|googledocs:|https:\/\/)/i;
+const TAG_RE = /\[\s*(TIMER|REMEMBER|FORGET|CANCEL|MOOD|END|IGNORE|NOTE|DONE|CLEARNOTES|OPEN)\b\s*:?\s*([^\]]*)\]/gi;
+let lastFlags = {end:false, ignore:false, open:''};
 function stripTags(raw){
   return raw.replace(TAG_RE, '').replace(/\[[^\]]*$/, '')      // also hide a tag that's only half arrived
             .replace(/[ \t]{2,}/g, ' ').trim();
 }
 function applyActions(raw){
-  lastFlags = {end:false, ignore:false};
+  lastFlags = {end:false, ignore:false, open:''};
   raw.replace(TAG_RE, (all, kind, arg)=>{
     kind = kind.toUpperCase(); arg = (arg || '').trim();
     if(kind === 'TIMER'){
@@ -1146,6 +1341,7 @@ function applyActions(raw){
     else if(kind === 'NOTE'){ if(arg) addNote(arg); }
     else if(kind === 'DONE'){ if(arg) doneNote(arg); }
     else if(kind === 'CLEARNOTES'){ notes = []; saveNotes(); }
+    else if(kind === 'OPEN'){ if(SAFE_LINK.test(arg)) lastFlags.open = arg; }
     return '';
   });
   return stripTags(raw);
@@ -1193,7 +1389,7 @@ function needsSearch(text){
 let searchOK = true;    // turns off automatically if web search isn't free for this key
 
 const FOLLOW_NOTE = '\nThis latest message was picked up by an open microphone during a follow-up, without your name being said. If it is clearly not meant for you (they are talking to someone else, a TV, background chatter, or it is meaningless), reply with only [IGNORE] and nothing else.';
-const cleanMd = s => s.replace(/[*#_`]/g, '').trim();
+const cleanMd = s => s.replace(/[*#`]/g, '').trim();   // drop markdown symbols (keep _ so links survive)
 
 /* We use the *streaming* version of the API: Gemini sends the answer in
    small pieces as it writes it, and onText() is called with the text so
@@ -1358,6 +1554,13 @@ try{
 document.getElementById('clearChat').onclick = ()=>{ history = []; saveChat(); log.innerHTML = ''; settingsEl.classList.remove('show'); speak('Conversation cleared.'); };
 
 // opts.voice: it came from the microphone. opts.follow: heard during a follow-up, without "Gideon"
+function openLabel(url){
+  const map = [[/^mailto:/i,'EMAIL'],[/^sms:/i,'MESSAGES'],[/^tel:/i,'PHONE'],[/^music:/i,'APPLE MUSIC'],[/^spotify:/i,'SPOTIFY'],
+               [/youtube/i,'YOUTUBE'],[/^maps:/i,'MAPS'],[/^shareddocuments:/i,'FILES'],[/^googledocs:/i,'GOOGLE DOCS']];
+  for(const [re, name] of map) if(re.test(url)) return name;
+  return 'LINK';
+}
+
 async function sendText(text, opts = {}){
   text = (text || '').trim();
   if(!text || thinking) return;
@@ -1417,6 +1620,12 @@ async function sendText(text, opts = {}){
   saveChat();
   body.textContent = reply; log.scrollTop = log.scrollHeight;
   thinking = false; sendBtn.disabled = false;
+  if(lastFlags.open){
+    const a = document.createElement('a');
+    a.className = 'openBtn'; a.href = lastFlags.open; a.target = '_blank'; a.rel = 'noopener';
+    a.textContent = '▶ OPEN ' + openLabel(lastFlags.open);
+    bubble.appendChild(a);
+  }
   if(lastFlags.end){ convo = false; listenFollow = false; heardEl.textContent = ''; keepAwake(wakeOn); }   // they're done: back to wake word
   talkPush(reply.slice(spokenTo)); talkEnd();
 }
