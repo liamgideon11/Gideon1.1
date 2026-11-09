@@ -25,27 +25,15 @@
   h1 { font-family:Orbitron,sans-serif; letter-spacing:.5em; font-size:20px; margin:0; color:var(--glow); text-shadow:0 0 12px var(--glow); padding-left:.5em; }
   #status { font-size:11px; letter-spacing:.25em; text-transform:uppercase; color:var(--dim); margin-top:6px; height:14px; }
 
-  /* The scene from the reference script: a deep blue back plate, rows of raised blue
-     droplets on both sides, four glowing vertical seams, light streaks and mist. */
+  /* The scene from the revised script: an almost-black deep blue background with a few broad
+     glowing lines behind the face, and a wet glass layer IN FRONT of the face (#glass canvas)
+     with water droplets dense on both sides, a few over the face, and short glowing frost streaks. */
   #stage { position:relative; height:365px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; overflow:hidden;
-    background-color:#04112a;
-    background-image:
-      radial-gradient(ellipse at 50% 42%, rgba(40,150,255,.30), rgba(40,150,255,0) 55%),
-      linear-gradient(90deg, transparent 8.55%, rgba(70,180,255,.8) 8.75%, transparent 8.95%,
-                             transparent 27.9%, rgba(70,180,255,.8) 28.1%, transparent 28.3%,
-                             transparent 71.7%, rgba(70,180,255,.8) 71.9%, transparent 72.1%,
-                             transparent 91.05%, rgba(70,180,255,.8) 91.25%, transparent 91.45%); }
-  .drops { position:absolute; top:4%; bottom:4%; width:23%; pointer-events:none;
-    background-image:
-      radial-gradient(circle at 9px 8px, #9ccdff 0, #3a74c2 2px, #1d4b8f 5px, rgba(20,55,110,0) 6.5px),
-      radial-gradient(circle at 11px 11px, rgba(0,8,25,.55) 0, rgba(0,8,25,0) 7px);
-    background-size:21px 19px;
-    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
-            mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent); }
-  #dropsL { left:0; } #dropsR { right:0; }
-  #stage::after { content:''; position:absolute; inset:0; pointer-events:none;
-    background: linear-gradient(to bottom, transparent 16%, rgba(110,180,255,.07) 22%, transparent 28%, transparent 46%, rgba(110,180,255,.06) 52%, transparent 58%, transparent 70%, rgba(110,180,255,.07) 76%, transparent 82%),
-                linear-gradient(to bottom, rgba(3,6,13,0) 75%, var(--bg) 100%),
+    background-color:#01040c;
+    background-image: radial-gradient(ellipse at 50% 42%, rgba(30,110,220,.22), rgba(30,110,220,0) 55%); }
+  #glass { position:absolute; inset:0; width:100%; height:100%; z-index:2; pointer-events:none; }
+  #stage::after { content:''; position:absolute; inset:0; pointer-events:none; z-index:3;
+    background: linear-gradient(to bottom, rgba(3,6,13,0) 75%, var(--bg) 100%),
                 linear-gradient(to top, rgba(3,6,13,0) 85%, var(--bg) 100%); }
   #orb { filter: drop-shadow(0 0 12px rgba(40,150,255,.55)); }
   #wisps { position:absolute; inset:0; width:100%; height:100%; }
@@ -118,7 +106,7 @@
   <div id="status">Online</div>
 </header>
 
-<div id="stage"><div class="drops" id="dropsL"></div><div class="drops" id="dropsR"></div><canvas id="wisps"></canvas><canvas id="orb"></canvas></div>
+<div id="stage"><canvas id="wisps"></canvas><canvas id="orb"></canvas><canvas id="glass"></canvas></div>
 
 <div id="log"></div>
 <div id="heard"></div>
@@ -190,7 +178,7 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v3.0</div>
+  <div class="ver">GIDEON v3.1</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -266,40 +254,44 @@ function fsp(x,y){ return [x/FK, (y-FY0)/FK + FY0]; }
 let t = 0, level = 0, blink = 0, nextBlink = 3;
 let dragX = 0, dragY = 0;
 const cv = document.getElementById('orb');
-/* ---------- Icy hologram face, built from the reference Blender script ----------
-   icy_face_3d_recreation.py builds the face from soft egg shapes (ellipsoids).
-   We use the SAME shapes, centres and sizes. Blender's axes are turned into ours
-   (Blender x -> x, Blender z (up) -> y, Blender -y (toward camera) -> z), then the
-   shapes are melted together into ONE smooth surface (a "smooth union"),
-   so it reads as a single sculpted face instead of separate balls. */
-const ICE_PARTS = [   // [centre x,y,z], [radius x,y,z]
-  [[0, 0.20, 0.00], [2.05, 2.75, 1.00]],    // Head (depth 0.75 in the script; a bit deeper so it isn't a flat mask when it turns)
-  [[0, 0.55,-0.80], [1.90, 2.30, 1.70]],    // back of the skull (added, so the head isn't flat when it turns)
-  [[0,-1.55, 0.08], [1.45, 1.05, 0.68]],    // Jaw
-  [[-0.95,-0.15,0.68], [0.90, 1.05, 0.50]], // Left cheek
-  [[ 0.95,-0.15,0.68], [0.90, 1.05, 0.50]], // Right cheek
-  [[0, 0.22, 1.02], [0.36, 0.80, 0.42]],    // Nose bridge (a little shorter than the script, so it stops between the brows)
-  [[0,-0.18, 1.22], [0.48, 0.40, 0.34]],    // Nose tip
-  [[0,-0.72, 1.05], [0.82, 0.28, 0.22]],    // Upper lip
-  [[0,-1.02, 1.00], [0.78, 0.25, 0.20]],    // Lower lip
-  [[0,-1.45, 0.82], [0.72, 0.52, 0.42]],    // Chin
-  [[-0.78,0.72,0.98], [0.78, 0.20, 0.18]],  // Left brow
-  [[ 0.78,0.72,0.98], [0.78, 0.20, 0.18]],  // Right brow
-  [[-2.0, 0.10,0.03], [0.35, 0.80, 0.32]],  // Left ear
-  [[ 2.0, 0.10,0.03], [0.35, 0.80, 0.32]],  // Right ear
+/* ---------- Icy face, built from icy_face_3d_recreation_REVISED.py ----------
+   The revised script builds ONE continuous face from "metaballs": soft blobs whose
+   strength fades out from their centre. Where several overlap, their strengths add
+   up, and the surface is wherever the total reaches the threshold (0.78), so the
+   blobs melt into each other with no seams.
+   Each entry below is the script's  mb(location, radius, size_x, size_y, size_z),
+   with Blender's axes turned into ours: Blender x -> x, Blender z (up) -> y,
+   Blender -y (toward the camera) -> z. The script then stretches the face 1.08x tall. */
+const META = [   // [x, y, z], radius, [size x, size y, size z]
+  [[0,    0.35, -0.05], 1.55, [1.00, 1.22, 0.68]],   // main cranial mass
+  [[0,   -1.35,  0.05], 1.18, [0.82, 0.88, 0.60]],   // lower face and jaw
+  [[0,   -1.85,  0.05], 0.72, [0.72, 0.56, 0.56]],   // chin / lower jaw
+  [[-0.72,-0.28, 0.42], 0.70, [0.88, 0.72, 0.55]],   // left cheek
+  [[ 0.72,-0.28, 0.42], 0.70, [0.88, 0.72, 0.55]],   // right cheek
+  [[0,    0.22,  0.88], 0.46, [0.42, 0.78, 0.52]],   // nose bridge
+  [[0,   -0.22,  1.05], 0.38, [0.58, 0.40, 0.56]],   // nose tip
+  [[-0.60, 0.65, 0.60], 0.30, [0.82, 0.24, 0.32]],   // left brow ridge
+  [[ 0.60, 0.65, 0.60], 0.30, [0.82, 0.24, 0.32]],   // right brow ridge
+  [[0,   -0.78,  0.82], 0.34, [1.05, 0.22, 0.28]],   // lips
+  [[0,   -1.08,  0.75], 0.40, [0.82, 0.28, 0.32]],   // lower lip / chin
+  [[-1.42,-0.10, 0.02], 0.43, [0.38, 0.78, 0.34]],   // left ear
+  [[ 1.42,-0.10, 0.02], 0.43, [0.38, 0.78, 0.34]],   // right ear
+  [[0,    0.40, -0.60], 1.40, [0.95, 1.10, 0.90]],   // back of the skull (added: the script's face is shallow, but Gideon turns its head)
 ];
-const ICE_EYES = [[[-0.72,0.36,1.06],[0.40,0.24,0.20]], [[0.72,0.36,1.06],[0.40,0.24,0.20]]];   // glowing glass eyes, set a little deeper under the brows
-const ICE_SCALE = 1/2.9, ICE_MOUTH_Y = -0.87;   // shrink to our scene size; where the lips meet
+const META_THRESHOLD = 0.78, META_STIFF = 2.0, META_TALL = 1.08, META_REACH = 1.9;   // REACH: a blob's influence spreads ~1.9x its radius, so a lone blob's surface sits at about its radius (like Blender)
+// the script's almond eyes: (x, -1.05, .18) scaled (.38,.13,.20), set just slightly into the face
+const ICE_EYES = [[[-0.58,0.19,0.98],[0.38,0.20,0.13]], [[0.58,0.19,0.98],[0.38,0.20,0.13]]];
+const ICE_SCALE = 0.38, ICE_MOUTH_Y = -0.99;   // shrink to our scene size; where the lips meet (after the 1.08 stretch)
 // Below 0 = inside the face, above 0 = outside.
 function iceField(x,y,z){
-  const k = 0.26; let d = 1e9;
-  for(const [[cx,cy,cz],[rx,ry,rz]] of ICE_PARTS){
-    const px=(x-cx)/rx, py=(y-cy)/ry, pz=(z-cz)/rz;
-    const e = (Math.sqrt(px*px+py*py+pz*pz) - 1) * Math.min(rx,ry,rz);   // roughly: how far outside this egg shape
-    const h = Math.max(k - Math.abs(d-e), 0) / k;                          // smooth union: melt the shapes together
-    d = Math.min(d, e) - h*h*k*0.25;
+  y /= META_TALL;                                  // undo the 1.08x stretch to read the original blobs
+  let f = 0;
+  for(const [[cx,cy,cz], r, [sx,sy,sz]] of META){
+    const px=(x-cx)/sx, py=(y-cy)/sy, pz=(z-cz)/sz;
+    const R = r*(r > 0.6 ? META_REACH : 1.5), q = (px*px+py*py+pz*pz)/(R*R);   // small features spread less, so they stay crisp
+    if(q < 1){ const k = 1-q; f += META_STIFF*k*k*k; }   // each blob fades smoothly to nothing at its radius
   }
-  return d;
+  return META_THRESHOLD - f;
 }
 
 let head3D = null;
@@ -338,13 +330,15 @@ function buildHead(){
     varying vec3 vN; varying vec3 vView; varying float vY; varying vec3 vP;
     void main(){
       vec3 n = normalize(vN);
-      float key  = max(dot(n, normalize(vec3(0.65,0.75,0.55))),0.0);   // light from upper left: shadows show the face's shape
-      float fill = max(dot(n, normalize(vec3(-0.7,0.1,0.5))),0.0);
-      float light = clamp(0.10 + key*0.80 + fill*0.30, 0.0, 1.0);
+      float key  = max(dot(n, normalize(vec3(0.0,0.53,0.85))),0.0);    // soft frontal cyan key, from above the camera
+      float fill = max(dot(n, normalize(vec3(-0.89,0.0,0.45))),0.0);   // blue fill from the left
+      float rimL = max(dot(n, normalize(vec3(0.95,0.35,-0.05))),0.0);   // rim light from the right
+      float topL = max(dot(n, normalize(vec3(0.0,0.98,0.2))),0.0);    // top ice glow
+      float light = clamp(0.08 + key*0.72 + fill*0.28 + rimL*0.30 + topL*0.25, 0.0, 1.0);
       light = pow(light, 1.6);
       float fres = pow(1.0 - max(dot(n, vView),0.0), 2.6);
       // frosted ice-glass: pale blue in shadow, near-white in light
-      vec3 col = mix(vec3(0.07,0.22,0.48), vec3(0.55,0.85,1.0), light);       // icy translucent blue (0.48,0.82,1.0 in the script)
+      vec3 col = mix(vec3(0.04,0.16,0.36), vec3(0.32,0.73,1.0)*1.15, light) + vec3(0.03,0.14,0.25)*0.6;   // cold translucent face (0.32,0.73,1.0) + its faint glow
       col += vec3(0.35,0.75,1.0)*fres*(0.8+uLevel*0.3);              // glowing blue edges
       col += vec3(1.0)*pow(key,20.0)*0.35;                           // glassy highlight
       // hologram texture: a faint shimmering grid of light dots, and now and then a digital flicker line
@@ -361,7 +355,7 @@ function buildHead(){
       float eyeShade = (bm(vFace, vec2(-${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035)) + bm(vFace, vec2(${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035))) * smoothstep(0.35,0.7,vP.z);
       col *= 1.0 - 0.06*eyeShade*(1.0-uBlink);
       col *= uTint;                                                  // mood colour
-      float a = 0.62 + fres*0.35;                                     // see-through ice (alpha 0.38 + transmission in the script)
+      float a = 0.62 + fres*0.33;                                     // see-through (alpha .62 + transmission in the script)
       if(uFade > 0.5) a *= smoothstep(-2.25, -1.7, vY);            // shoulders fade out
       gl_FragColor = vec4(col, a);
     }`;
@@ -374,11 +368,11 @@ function buildHead(){
   const n = pos.count, S = ICE_SCALE;
   const base = new Float32Array(n*3), jawW = new Float32Array(n), mouthW = new Float32Array(n), gap = new Float32Array(n),
         irisA = new Float32Array(n), faceA = new Float32Array(n*2), blinkD = new Float32Array(n*3);
-  const moving = [], C = [0, -0.3, 0.35];        // a point inside the face to shoot rays from
+  const moving = [], C = [0, -0.3, 0.25];        // a point inside the face to shoot rays from
   for(let i=0;i<n;i++){
     const ux=pos.getX(i), uy=pos.getY(i), uz=pos.getZ(i);
     // march inward from far away until we're inside the shape, then narrow it down (bisection)
-    let r = 3.2, step = 0.08;
+    let r = 3.4, step = 0.06;
     while(r > 0 && iceField(C[0]+ux*r, C[1]+uy*r, C[2]+uz*r) > 0) r -= step;
     let lo = Math.max(r,0), hi = r + step;
     for(let k=0;k<10;k++){ const m=(lo+hi)/2; if(iceField(C[0]+ux*m, C[1]+uy*m, C[2]+uz*m) > 0) hi = m; else lo = m; }
@@ -386,9 +380,9 @@ function buildHead(){
     base.set([x*S, y*S, z*S], i*3);
     pos.setXYZ(i, x*S, y*S, z*S);
     // which points move when Gideon talks
-    jawW[i] = smooth(ICE_MOUTH_Y+0.08, ICE_MOUTH_Y-0.55, y) * smooth(-0.9, 0.6, z) * (0.3 + 0.7*Math.exp(-(x*x)/(2*0.9*0.9)));   // soft, so no crease
-    mouthW[i] = bump(x, y, 0, ICE_MOUTH_Y, 0.55, 0.28) * smooth(0.6, 1.0, z);
-    gap[i] = bump(x, y, 0, ICE_MOUTH_Y, 0.42, 0.045) * smooth(0.7, 1.05, z);    // inside of the mouth
+    jawW[i] = smooth(ICE_MOUTH_Y+0.08, ICE_MOUTH_Y-0.5, y) * smooth(-0.7, 0.5, z) * (0.3 + 0.7*Math.exp(-(x*x)/(2*0.7*0.7)));   // soft, so no crease
+    mouthW[i] = bump(x, y, 0, ICE_MOUTH_Y, 0.45, 0.22) * smooth(0.4, 0.85, z);
+    gap[i] = bump(x, y, 0, ICE_MOUTH_Y, 0.36, 0.04) * smooth(0.45, 0.85, z);    // inside of the mouth
     if(jawW[i] > 0.001 || mouthW[i] > 0.001) moving.push(i);
   }
   geo.setAttribute('aGap', new THREE.BufferAttribute(gap,1));
@@ -428,7 +422,7 @@ function buildHead(){
     transparent:true,
     vertexShader:`varying vec3 vN; varying vec3 vV; void main(){ vec4 wp = modelMatrix*vec4(position,1.0); vN = normalize(mat3(modelMatrix)*normal); vV = normalize(cameraPosition - wp.xyz); gl_Position = projectionMatrix*viewMatrix*wp; }`,
     fragmentShader:`uniform vec3 uTint; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(1.0 - max(dot(normalize(vN), vV), 0.0), 2.0);
-      vec3 c = vec3(0.30,0.62,0.95)*0.6 + vec3(0.22,0.55,0.9)*0.35 + vec3(0.7,0.9,1.0)*f*0.6; gl_FragColor = vec4(c*uTint, 0.5 + f*0.35); }`,
+      vec3 c = vec3(0.55,0.88,1.0)*0.45 + vec3(0.18,0.58,1.0)*0.5 + vec3(0.7,0.9,1.0)*f*0.5; gl_FragColor = vec4(c*uTint, 0.72); }`,
     uniforms:{ uTint: uniforms.uTint }
   });
   const eyes = [];
@@ -469,7 +463,7 @@ function buildHead(){
   });
 
   return {renderer, scene, camera, group, geo, pos, base, jawW, mouthW, blinkD, moving, uniforms, eyes, rings, motes, frame:0,
-          pivot:[-0.35*ICE_SCALE, -0.3*ICE_SCALE]};   // the jaw hinges just in front of the ears
+          pivot:[-0.40*ICE_SCALE, -0.15*ICE_SCALE]};   // the jaw hinges just in front of the ears
 }
 
 /* ---------- Lip sync ----------
@@ -500,23 +494,70 @@ function lipStartWord(text, charIndex){
 function lipWholeText(text){ lipQueue = shapesFor(text, performance.now()); }
 
 const wcv = document.getElementById('wisps'), wcx = wcv.getContext('2d');
+// Behind the face: the script's five broad flowing lines (at heights -2.2, -1.1, 0.2, 1.35, 2.35)
 function drawWisps(){
   const W = wcv.clientWidth, Hh = wcv.clientHeight;
   if(wcv.width !== W*2){ wcv.width = W*2; wcv.height = Hh*2; }
   wcx.setTransform(2,0,0,2,0,0); wcx.clearRect(0,0,W,Hh);
   wcx.lineCap='round';
-  for(let i=0;i<14;i++){
-    const y0 = (i/14)*Hh + Math.sin(t*0.3+i)*12;
+  const k = W/5.8;                                   // pixels per script unit
+  [-2.2,-1.1,0.2,1.35,2.35].forEach((z,i)=>{
+    const y0 = Hh*0.47 - z*k*0.75;
     wcx.beginPath();
     for(let x=-10;x<=W+10;x+=8){
-      const y = y0 + Math.sin(x*0.012 + t*0.7 + i*1.7)*18 + Math.sin(x*0.031 - t*0.5 + i)*6;
+      const y = y0 + Math.sin(x*0.010 + t*0.35 + i*1.7)*14 + Math.sin(x*0.027 - t*0.25 + i)*5;
       x<=-10 ? wcx.moveTo(x,y) : wcx.lineTo(x,y);
     }
-    wcx.strokeStyle = 'rgba(70,170,255,'+(0.16+0.10*Math.sin(t*0.8+i*2))+')';   // glowing blue frost streaks
-    wcx.lineWidth = 0.8 + (i%3)*0.6; wcx.shadowColor='#2f9bff'; wcx.shadowBlur=8;
+    wcx.strokeStyle = 'rgba(64,150,255,'+(0.30+0.12*Math.sin(t*0.6+i*2))+')';
+    wcx.lineWidth = 1.4; wcx.shadowColor='#0a6bff'; wcx.shadowBlur=10;
     wcx.stroke();
-  }
+  });
 }
+
+/* In front of the face: the script's wet glass, water beads and short frost streaks.
+   Drawn once (and again if the size changes), with the same random seed every time. */
+const gcv = document.getElementById('glass'), gcx = gcv.getContext('2d');
+function seeded(a){ return ()=>{ a|=0; a=a+0x6D2B79F5|0; let t2=Math.imul(a^a>>>15,1|a); t2=t2+Math.imul(t2^t2>>>7,61|t2)^t2; return ((t2^t2>>>14)>>>0)/4294967296; }; }
+function drawGlass(){
+  const W = gcv.clientWidth, Hh = gcv.clientHeight; if(!W) return;
+  gcv.width = W*2; gcv.height = Hh*2;
+  gcx.setTransform(2,0,0,2,0,0); gcx.clearRect(0,0,W,Hh);
+  const rnd = seeded(42), U = (a,b)=> a + rnd()*(b-a);
+  const k = W/5.8, X = x => W/2 + x*k, Y = z => Hh*0.47 - z*k*0.75;
+  gcx.fillStyle = 'rgba(26,90,158,0.10)'; gcx.fillRect(0,0,W,Hh);                 // the glass itself: a faint blue tint
+  const bead = (x, z, r)=>{
+    const px = X(x), py = Y(z), rr = Math.max(1.6, r*k*0.9);
+    gcx.fillStyle = 'rgba(0,6,20,0.35)';                                          // soft shadow below the bead
+    gcx.beginPath(); gcx.ellipse(px+rr*0.25, py+rr*0.35, rr, rr*1.05, 0, 0, 6.283); gcx.fill();
+    const g = gcx.createRadialGradient(px-rr*0.35, py-rr*0.4, rr*0.1, px, py, rr);
+    g.addColorStop(0, 'rgba(150,205,255,0.95)'); g.addColorStop(0.35, 'rgba(46,105,180,0.9)');
+    g.addColorStop(0.85, 'rgba(18,48,100,0.85)'); g.addColorStop(1, 'rgba(10,30,70,0.5)');
+    gcx.fillStyle = g; gcx.beginPath(); gcx.ellipse(px, py, rr, rr*1.05, 0, 0, 6.283); gcx.fill();
+    gcx.fillStyle = 'rgba(255,255,255,0.7)';                                      // tiny highlight
+    gcx.beginPath(); gcx.arc(px-rr*0.4, py-rr*0.45, rr*0.22, 0, 6.283); gcx.fill();
+  };
+  for(const side of [-1,1])                                                       // dense on both sides
+    for(let row=0; row<11; row++){
+      const z = -2.75 + row*0.55 + U(-0.08,0.08);
+      for(let col=0; col<5; col++) bead(side*(1.72 + col*0.48 + U(-0.08,0.08)), z, U(0.055,0.12));
+    }
+  for(let i=0;i<60;i++){                                                          // a few over the face, centre kept clear
+    const x = U(-1.65,1.65), z = U(-2.55,2.85), r = U(0.035,0.08);
+    if(Math.abs(x) < 0.55 && z > -0.9 && z < 1.15) continue;
+    bead(x, z, r);
+  }
+  gcx.lineCap = 'round'; gcx.shadowColor = '#1a7dff'; gcx.shadowBlur = 8;         // short glowing frost streaks at the sides
+  for(let i=0;i<26;i++){
+    const z = U(-3.1,3.2), x = i%2===0 ? U(-4.0,-2.0) : U(2.0,4.0);
+    const x1 = x+U(-0.8,0.8), z1 = z+U(-0.25,0.25), x2 = x+U(-1.4,1.4), z2 = z+U(-0.45,0.45);
+    gcx.strokeStyle = 'rgba(70,170,255,0.75)'; gcx.lineWidth = Math.max(0.7, U(0.006,0.018)*k*1.6);
+    gcx.beginPath(); gcx.moveTo(X(x),Y(z)); gcx.quadraticCurveTo(X(x1),Y(z1), X(x2),Y(z2)); gcx.stroke();
+  }
+  gcx.shadowBlur = 0;
+}
+drawGlass();
+window.addEventListener('resize', drawGlass);
+
 /* ---------- Mood colours ----------
    Each mood is a colour "tint" that multiplies the hologram's colour.
    [1,1,1] = no change (calm ice-blue). The tint eases smoothly
