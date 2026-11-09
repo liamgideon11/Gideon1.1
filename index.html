@@ -177,7 +177,7 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v2.8</div>
+  <div class="ver">GIDEON v2.9</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -248,7 +248,7 @@ let voiceOn = true;
    4. Every frame: rotate the lower jaw by "level" (mouth opens
       when Gideon talks), sway the head, and draw it. */
 const EYE_X = 0.265, EYE_Y = 0.10, MOUTH_Y = -0.395;
-const FK = 1.32, FY0 = -0.08;   // face scale: bigger = features spread wider
+const FK = 1.16, FY0 = -0.08;   // face scale: bigger = features spread wider
 function fsp(x,y){ return [x/FK, (y-FY0)/FK + FY0]; }
 let t = 0, level = 0, blink = 0, nextBlink = 3;
 let dragX = 0, dragY = 0;
@@ -261,16 +261,6 @@ function bump(x,y,cx,cy,sx,sy){ return Math.exp(-(((x-cx)**2)/(2*sx*sx) + ((y-cy
 
 // Turn a point on a plain ball into a point on a face.
 // Each line pushes the surface out (+) or in (-) with a soft bump.
-// Where the hair is (1) and isn't (0), on the plain ball before sculpting.
-// Smooth edges everywhere, so there's no hard seam at the hairline.
-function hairMask(x,y,z){
-  const line = 0.66 - 0.55*x*x;                                       // hairline: high in the middle, lower at the temples
-  const face = smooth(0.10,0.40,z) * smooth(line+0.07, line-0.07, y); // the face, below the hairline
-  const below = smooth(-0.30,-0.62,y) * smooth(-0.1,0.3,z+0.2);      // jaw and neck
-  const nape = smooth(-0.42,-0.75,y);                                // hair ends at the back of the neck
-  const ears = Math.exp(-(y*y)/(2*0.13*0.13)) * smooth(0.74,0.9,Math.abs(x)) * smooth(-0.35,0.05,z);  // tucked behind the ears
-  return Math.max(0, (1-face)*(1-below)*(1-nape)*(1-0.95*ears));
-}
 function sculpt(x,y,z,closed=0){   // closed: 0 = eyes open, 1 = eyes shut
   let d = 0;
   if(z > 0){
@@ -280,14 +270,14 @@ function sculpt(x,y,z,closed=0){   // closed: 0 = eyes open, 1 = eyes shut
     let f = 0;
     for(const s of [-1,1]){
       const ex = s*EYE_X;
-      f -= 0.105*bump(x,y,ex,EYE_Y,0.135,0.085);         // eye socket (a little deeper)
-      f += (0.064-0.012*closed)*bump(x,y,ex,EYE_Y-0.004,0.082,0.044);   // eyeball under the lids (wider, almond)
+      f -= 0.130*bump(x,y,ex,EYE_Y,0.135,0.09);          // eye socket (deep, like a real skull)
+      f += (0.080-0.016*closed)*bump(x,y,ex,EYE_Y-0.002,0.08,0.054);   // eyeball under the lids (awake, almond)
       f += 0.014*closed*bump(x,y,ex,EYE_Y+0.005,0.075,0.04);  // closed lid covering the eye
       f += 0.012*bump(x,y,ex,EYE_Y+0.032-0.072*closed,0.08,0.016);    // upper eyelid edge (slides down to blink)
       f -= 0.016*bump(x,y,ex+s*0.005,EYE_Y+0.068,0.085,0.018); // eyelid crease
       f += 0.008*bump(x,y,ex,EYE_Y-0.045,0.075,0.016);   // lower eyelid
       f -= 0.010*bump(x,y,ex,EYE_Y-0.085,0.07,0.03);     // under-eye softness
-      f += 0.034*bump(x,y,ex+s*0.02,0.232,0.14,0.04);    // brow ridge
+      f += 0.050*bump(x,y,ex+s*0.02,0.228,0.14,0.042);   // brow ridge
       f += 0.062*bump(x,y,s*0.37,0.0,0.10,0.065);        // high cheekbone
       f += 0.020*bump(x,y,s*0.30,-0.24,0.12,0.10);       // cheek fullness
       f -= 0.016*bump(x,y,s*0.16,-0.29,0.025,0.08);      // smile line beside the nose
@@ -298,14 +288,14 @@ function sculpt(x,y,z,closed=0){   // closed: 0 = eyes open, 1 = eyes shut
       f += 0.006*bump(x,y,s*0.022,-0.30,0.012,0.04);     // ridges under the nose
     }
     f += 0.018*bump(x,y,0,0.19,0.06,0.06);               // between the brows
-    f += 0.082*bump(x,y,0,-0.075,0.026,0.11);             // nose bridge (slimmer)
-    f += 0.110*bump(x,y,0,-0.19,0.040,0.042);            // nose tip (finer)
+    f += 0.130*bump(x,y,0,-0.085,0.028,0.12);             // nose bridge (stands out like a real nose)
+    f += 0.170*bump(x,y,0,-0.195,0.042,0.045);           // nose tip
     f -= 0.008*bump(x,y,0,-0.30,0.014,0.04);             // groove under the nose
-    f += 0.056*bump(x,y,0,MOUTH_Y+0.03,0.105,0.025);     // upper lip (fuller)
+    f += 0.075*bump(x,y,0,MOUTH_Y+0.03,0.11,0.03);       // upper lip
     f -= 0.040*bump(x,y,0,MOUTH_Y,0.125,0.011);          // line between lips
-    f += 0.066*bump(x,y,0,MOUTH_Y-0.038,0.092,0.027);    // lower lip (fuller)
+    f += 0.080*bump(x,y,0,MOUTH_Y-0.038,0.095,0.03);     // lower lip
     f -= 0.026*bump(x,y,0,-0.50,0.09,0.025);             // dip under the lip
-    f += 0.052*bump(x,y,0,-0.60,0.10,0.065);             // chin (softer)
+    f += 0.085*bump(x,y,0,-0.61,0.11,0.07);              // chin
     d += f*fm;
     x = x0; y = y0;
   }
@@ -319,21 +309,35 @@ function sculpt(x,y,z,closed=0){   // closed: 0 = eyes open, 1 = eyes shut
     ear += 0.022*Math.exp(-(ez*ez)/(2*0.5*0.5) - ((ey+1.0)**2)/(2*0.35*0.35)); // earlobe
     d += ear*side;
   }
-  // hair: a soft extra layer over the top, sides and back of the head
-  {
-    const hm = hairMask(x,y,z);
-    d += hm*(0.045 + 0.05*smooth(0.15,0.9,y) + 0.045*smooth(0.1,-0.7,z)*smooth(-0.45,0.35,y));
-    // a neat bun at the back, where the swept-back strands meet
-    d += 0.17*Math.exp(-(((y+0.08)/0.2)**2) - ((x/0.2)**2)) * smooth(-0.55,-0.92,z);
-  }
   x*=1+d; y*=1+d; z*=1+d;
-  // soft smile: lift the corners of the mouth
-  if(z > 0){ const [fx,fy] = fsp(x,y); y += 0.02*(bump(fx,fy,-0.13,MOUTH_Y,0.04,0.035)+bump(fx,fy,0.13,MOUTH_Y,0.04,0.035)); }
-  // overall head shape: rounded skull, tall forehead, narrower soft jaw
-  const jaw = smooth(-0.15,-0.9,y);
-  x *= (1 - 0.27*jaw) * 0.80;                          // round skull, softer jaw
-  z *= (z>0 ? (1 - 0.05*jaw) : (1 - 0.20*jaw)*0.97);   // rounder back of the head
-  y *= 1.07 - 0.04*smooth(0.2, 0.8, y);                // less egg-shaped
+  // ---- real human head proportions ----
+  // A real skull isn't a ball. Seen from above it's a rounded box (flat face, flat temples),
+  // it's longer front-to-back than it is wide, and from the side the back of the skull
+  // bulges out above the neck while the forehead curves back into the crown.
+  {
+    const r = Math.hypot(x, z);
+    if(r > 1e-4){
+      const c = Math.abs(x)/r, sn = Math.abs(z)/r, p = 2.7;
+      const k = 1 / Math.pow(Math.pow(c,p) + Math.pow(sn,p), 1/p);    // pushes toward a rounded box
+      const m = 1 + (k-1)*0.9*smooth(-0.75,-0.35,y);                  // skull and face, not the chin
+      x *= m; z *= m;
+    }
+  }
+  const jaw = smooth(-0.12,-0.9,y);                       // 0 above the cheeks, 1 at the chin
+  const jawAngle = Math.exp(-(((y+0.55)/0.16)**2)) * smooth(0.35,-0.15,z);   // corner of the jaw, below the ear
+  x *= (1 - 0.22*jaw + 0.07*jawAngle) * (0.77 - 0.10*smooth(0.2,0.95,y));   // skull not too wide on top, defined jaw corners
+  if(z > 0){
+    z *= 1 - 0.04*jaw;
+    z += 0.035*Math.exp(-(((y+0.62)/0.12)**2)) * smooth(0.5,0.9,z);  // chin comes forward a little
+  } else {
+    z *= 1.03 + 0.06*Math.exp(-(((y-0.08)/0.32)**2));     // the back of the skull bulges out a little
+    z *= 1 - 0.32*smooth(-0.2,-0.85,y);                   // then tucks in toward the neck
+  }
+  z -= 0.07*smooth(0.35,1.0,y);                           // forehead curves back into the crown
+  if(z > 0) z -= 0.06*Math.exp(-(((y-0.45)/0.25)**2))*Math.exp(-((x/0.5)**2));  // flatter forehead (it shouldn't stick out past the nose)
+  // under the jaw: lift the bottom of the ball up so the jaw runs back from the chin to the neck
+  y += 0.55*(-0.62 - y)*smooth(-0.6,-0.9,y)*smooth(0.55,0.1,z);
+  y *= 1.08 - 0.11*smooth(0.3, 0.95, y);                  // a lower, flatter crown
   return [x,y,z];
 }
 
@@ -348,10 +352,10 @@ function buildHead(){
 
   const uniforms = { uTime:{value:0}, uLevel:{value:0}, uFade:{value:0}, uOpen:{value:0}, uBlink:{value:0}, uTint:{value:new THREE.Vector3(1,1,1)}, uLook:{value:new THREE.Vector2(0,0)} };
   const vert = `
-    attribute float aGap; varying float vGap; attribute float aIris; varying float vIris; attribute vec2 aFace; varying vec2 vFace; attribute float aHair; varying float vHair;
+    attribute float aGap; varying float vGap; attribute float aIris; varying float vIris; attribute vec2 aFace; varying vec2 vFace;
     varying vec3 vN; varying vec3 vView; varying float vY; varying vec3 vP;
     void main(){
-      vGap = aGap; vIris = aIris; vFace = aFace; vHair = aHair; vP = position;
+      vGap = aGap; vIris = aIris; vFace = aFace; vP = position;
       vec4 wp = modelMatrix*vec4(position,1.0);
       vN = normalize(mat3(modelMatrix)*normal);
       vView = normalize(cameraPosition - wp.xyz);
@@ -360,57 +364,33 @@ function buildHead(){
     }`;
   const frag = `
     uniform float uTime; uniform float uLevel; uniform float uFade; uniform float uOpen; uniform float uBlink; uniform vec3 uTint; uniform vec2 uLook;
-    varying float vGap; varying float vIris; varying vec2 vFace; varying float vHair;
+    varying float vGap; varying float vIris; varying vec2 vFace;
     float bm(vec2 p, vec2 c, vec2 s){ vec2 d = (p-c)/s; return exp(-0.5*dot(d,d)); }
     varying vec3 vN; varying vec3 vView; varying float vY; varying vec3 vP;
     void main(){
       vec3 n = normalize(vN);
-      float key  = max(dot(n, normalize(vec3(0.5,0.6,0.8))),0.0);
+      float key  = max(dot(n, normalize(vec3(0.65,0.75,0.55))),0.0);   // light from upper left: shadows show the face's shape
       float fill = max(dot(n, normalize(vec3(-0.7,0.1,0.5))),0.0);
-      float light = clamp(0.02 + key*0.85 + fill*0.22, 0.0, 1.0);
-      light = pow(light, 1.3);
+      float light = clamp(0.08 + key*0.85 + fill*0.25, 0.0, 1.0);
+      light = pow(light, 1.6);
       float fres = pow(1.0 - max(dot(n, vView),0.0), 2.6);
       // frosted ice-glass: pale blue in shadow, near-white in light
-      vec3 col = mix(vec3(0.16,0.28,0.50), vec3(0.86,0.94,1.0), light);
+      vec3 col = mix(vec3(0.13,0.25,0.50), vec3(0.84,0.93,1.0), light);
       col += vec3(0.8,0.92,1.0)*fres*(0.55+uLevel*0.25);             // glowing edges
       col += vec3(1.0)*pow(key,20.0)*0.35;                           // glassy highlight
-      // faint light veins running through the glass
-      float v1 = sin(vP.x*23.0 + sin(vP.y*17.0 + uTime*0.6)*2.0 + vP.z*11.0);
-      float v2 = sin(vP.y*29.0 - sin(vP.x*13.0 - uTime*0.4)*2.5);
-      col += vec3(0.9,0.97,1.0)*(smoothstep(0.993,1.0,v1)+smoothstep(0.995,1.0,v2))*0.12;
+      // hologram texture: a faint shimmering grid of light dots, and now and then a digital flicker line
+      float grid = pow(abs(sin(vP.x*70.0)*sin(vP.y*70.0)*sin(vP.z*70.0)), 6.0);
+      col += vec3(0.75,0.9,1.0)*grid*0.10*(0.6 + 0.4*sin(uTime*1.7 + vP.y*3.0));
+      float glitchY = fract(uTime*0.13)*3.4 - 1.7;
+      float glitch = smoothstep(0.012, 0.0, abs(vY - glitchY)) * step(0.55, fract(sin(floor(uTime*0.13)*91.7)*437.5));
+      col += vec3(0.8,0.95,1.0)*glitch*0.35;
       float scan = 0.98 + 0.02*sin(vY*140.0 - uTime*4.0);            // very soft scanlines
       float band = smoothstep(0.12,0.0,abs(vY - (mod(uTime*0.45,3.2)-1.6)));
       col = col*scan + vec3(0.9,0.97,1.0)*band*0.07;
       col = mix(col, vec3(0.2,0.3,0.45), clamp(vGap*uOpen*1.6,0.0,0.85)); // mouth opening
-      // iris + pupil, drawn around a point that moves with uLook (so the eyes can look around)
-      vec2 eL = vec2(-${EYE_X.toFixed(3)}, ${(EYE_Y-0.005).toFixed(3)}) + uLook, eR = vec2(${EYE_X.toFixed(3)}, ${(EYE_Y-0.005).toFixed(3)}) + uLook;
-      float iris = (bm(vFace, eL, vec2(0.03,0.028)) + bm(vFace, eR, vec2(0.03,0.028))) * vIris;
-      float pupil = (bm(vFace, eL, vec2(0.012,0.012)) + bm(vFace, eR, vec2(0.012,0.012))) * vIris;
-      col *= 1.0 - (0.38*smoothstep(0.2,0.9,iris) + 0.25*smoothstep(0.5,0.95,pupil))*(1.0-uBlink);
-      col += vec3(1.0)*bm(vFace, eL+vec2(0.008,0.010), vec2(0.005,0.005))*vIris*0.35*(1.0-uBlink);   // tiny catch-light
-      col += vec3(1.0)*bm(vFace, eR+vec2(0.008,0.010), vec2(0.005,0.005))*vIris*0.35*(1.0-uBlink);
-      // face details, only on the front of the face
-      float front = smoothstep(0.35, 0.7, vP.z) * (1.0 - vHair);
-      for(int k = 0; k < 2; k++){
-        float ex = k == 0 ? -${EYE_X.toFixed(3)} : ${EYE_X.toFixed(3)};
-        float dx = (vFace.x - ex) / 0.09;
-        float inEye = smoothstep(1.05, 0.75, abs(dx));
-        float lidY = ${EYE_Y.toFixed(3)} + 0.034*(1.0 - dx*dx) - 0.07*uBlink;          // upper eyelid edge
-        col *= 1.0 - 0.55*exp(-pow((vFace.y - lidY)/0.0075, 2.0)) * inEye * front;   // eyelash line
-        float lowY = ${EYE_Y.toFixed(3)} - 0.03*(1.0 - dx*dx);                         // lower lid
-        col *= 1.0 - 0.18*exp(-pow((vFace.y - lowY)/0.006, 2.0)) * inEye * front;
-        float bx = (vFace.x - ex - (k == 0 ? -0.012 : 0.012)) / 0.12;
-        float browY = ${(EYE_Y+0.105).toFixed(3)} + 0.028*(1.0 - pow(bx + (k == 0 ? 0.25 : -0.25), 2.0));   // arched brow
-        col *= 1.0 - 0.32*exp(-pow((vFace.y - browY)/0.012, 2.0)) * smoothstep(1.1, 0.8, abs(bx)) * front;
-      }
-      float lips = bm(vFace, vec2(0.0, ${(MOUTH_Y-0.005).toFixed(3)}), vec2(0.1, 0.034)) * front;
-      col = mix(col, col*vec3(0.88,0.84,1.05), 0.45*lips);                             // lips a touch darker
-      // hair: fine flowing strands and a slow shimmer
-      // strands run from the forehead back over the head (lines around the front-to-back axis)
-      float ang = atan(vP.x, vP.y + 0.15);
-      float strand = 0.8 + 0.2*sin(ang*80.0 + 0.6*sin(vP.z*5.0)) * (0.6 + 0.4*sin(ang*17.0 - vP.z*3.0));
-      vec3 hairCol = col*vec3(0.74,0.84,1.0)*strand + vec3(0.85,0.93,1.0)*pow(max(0.0, sin(vP.y*5.0 - uTime*0.7 + vP.x*2.0)), 24.0)*0.18;
-      col = mix(col, hairCol, smoothstep(0.05, 0.6, vHair));
+      // eyes: smooth and blank like a statue (no cartoon pupils), just a soft shadow in the socket
+      float eyeShade = (bm(vFace, vec2(-${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035)) + bm(vFace, vec2(${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035))) * smoothstep(0.35,0.7,vP.z);
+      col *= 1.0 - 0.06*eyeShade*(1.0-uBlink);
       col *= uTint;                                                  // mood colour
       float a = 0.8 + fres*0.2;
       if(uFade > 0.5) a *= smoothstep(-2.25, -1.7, vY);            // shoulders fade out
@@ -422,14 +402,14 @@ function buildHead(){
   const geo = new THREE.SphereGeometry(1, 240, 240);
   geo.rotateY(-Math.PI/2);                       // hide the seam at the back
   const pos = geo.attributes.position;
-  const base = new Float32Array(pos.count*3), jawW = new Float32Array(pos.count), mouthW = new Float32Array(pos.count), gap = new Float32Array(pos.count), irisA = new Float32Array(pos.count), faceA = new Float32Array(pos.count*2), hairA = new Float32Array(pos.count), blinkD = new Float32Array(pos.count*3);
+  const base = new Float32Array(pos.count*3), jawW = new Float32Array(pos.count), mouthW = new Float32Array(pos.count), gap = new Float32Array(pos.count), irisA = new Float32Array(pos.count), faceA = new Float32Array(pos.count*2), blinkD = new Float32Array(pos.count*3);
   const moving = [];
   for(let i=0;i<pos.count;i++){
     const ux=pos.getX(i), uy=pos.getY(i), uz=pos.getZ(i);
     const p = sculpt(ux,uy,uz);
     const [fx,fy] = fsp(ux,uy);
     base.set(p, i*3);
-    jawW[i] = smooth(MOUTH_Y+0.005,MOUTH_Y-0.02,fy) * smooth(-0.35,0.15,uz);   // which points belong to the jaw
+    jawW[i] = smooth(MOUTH_Y+0.01,MOUTH_Y-0.09,fy) * smooth(-0.7,0.35,uz) * (0.35 + 0.65*Math.exp(-(fx*fx)/(2*0.22*0.22)));   // soft hinge: mostly the chin moves, cheeks only stretch   // which points belong to the jaw
     mouthW[i] = bump(fx,fy,0,MOUTH_Y,0.16,0.08) * smooth(0.4,0.85,uz); // lips area
     let eyeArea = 0;
     if(uz > 0.5) eyeArea = Math.max(bump(fx,fy,-EYE_X,EYE_Y,0.14,0.12), bump(fx,fy,EYE_X,EYE_Y,0.14,0.12));
@@ -440,25 +420,23 @@ function buildHead(){
     if(jawW[i]>0.001 || mouthW[i]>0.001 || eyeArea>0.002) moving.push(i);   // only these points ever move
     gap[i] = bump(fx,fy,0,MOUTH_Y,0.11,0.014) * smooth(0.5,0.85,uz);  // inside of the mouth
     faceA[i*2] = fx; faceA[i*2+1] = fy;
-    hairA[i] = hairMask(ux,uy,uz);                    // face-space position, so the shader can draw irises anywhere
     irisA[i] = Math.max(bump(fx,fy,-EYE_X,EYE_Y,0.075,0.05), bump(fx,fy,EYE_X,EYE_Y,0.075,0.05)) * smooth(0.5,0.85,uz); // where eyeballs are
     pos.setXYZ(i,p[0],p[1],p[2]);
   }
   geo.setAttribute('aGap', new THREE.BufferAttribute(gap,1));
   geo.setAttribute('aIris', new THREE.BufferAttribute(irisA,1));
   geo.setAttribute('aFace', new THREE.BufferAttribute(faceA,2));
-  geo.setAttribute('aHair', new THREE.BufferAttribute(hairA,1));
   geo.computeVertexNormals();
   const group = new THREE.Group();
   const headMesh = new THREE.Mesh(geo, mat);
   const headGroup = new THREE.Group(); headGroup.add(headMesh);
-  headGroup.scale.setScalar(0.9); headGroup.position.y = 0.02;
+  headGroup.scale.setScalar(0.88); headGroup.position.y = -0.06;
   group.add(headGroup);
 
   // hologram dots overlay (shares the same geometry, so it moves with the jaw)
 
   // neck and shoulders: a profile line spun around (a "lathe"), then flattened front-to-back
-  const prof = [[0.30,-0.45],[0.31,-0.85],[0.33,-1.08],[0.40,-1.24],[0.62,-1.36],[1.0,-1.46],[1.32,-1.6],[1.48,-1.85],[1.52,-2.3]]
+  const prof = [[0.33,-0.40],[0.34,-0.78],[0.37,-1.00],[0.47,-1.18],[0.72,-1.32],[1.05,-1.43],[1.34,-1.58],[1.49,-1.85],[1.53,-2.3]]   // a sturdier, shorter neck
     .map(([r,y])=>new THREE.Vector2(r,y));
   const bustGeo = new THREE.LatheGeometry(prof, 96);
   const bp = bustGeo.attributes.position;
@@ -470,7 +448,6 @@ function buildHead(){
   bustGeo.setAttribute('aGap', new THREE.BufferAttribute(new Float32Array(bp.count),1));
   bustGeo.setAttribute('aIris', new THREE.BufferAttribute(new Float32Array(bp.count),1));
   bustGeo.setAttribute('aFace', new THREE.BufferAttribute(new Float32Array(bp.count*2),2));
-  bustGeo.setAttribute('aHair', new THREE.BufferAttribute(new Float32Array(bp.count),1));
   const bustMat = mat.clone();
   bustMat.uniforms = {uTime:uniforms.uTime, uLevel:uniforms.uLevel, uFade:{value:1}, uOpen:{value:0}, uBlink:{value:0}, uTint:uniforms.uTint, uLook:{value:new THREE.Vector2(0,0)}};
   const bust = new THREE.Mesh(bustGeo, bustMat);
@@ -629,7 +606,7 @@ function animate(){
   level += (target - level) * 0.2;
   if(head3D){
     const H = head3D;
-    const ang = mouthOpen*0.2, pyv=-0.26, pzv=-0.15;
+    const ang = mouthOpen*0.17, pyv=-0.26, pzv=-0.15;
     nextBlink -= 0.016;
     if(nextBlink<=0){ blink=1; nextBlink=2.5+Math.random()*4; }
     blink = Math.max(0, blink-0.11);
