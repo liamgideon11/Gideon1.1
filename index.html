@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gideon">
+<meta name="theme-color" content="#03060d">
+<link rel="apple-touch-icon" href="icon.png">
+<title>Gideon</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --glow:#5fd4ff; --glow2:#2a7cff; --bg:#03060d; --text:#d8f3ff; --dim:#6f8fa3; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--text); font-family:Inter,system-ui,sans-serif; }
+  body {
+    display:flex; flex-direction:column; min-height:100dvh;
+    background: radial-gradient(ellipse at 50% 20%, #0a1e33 0%, var(--bg) 60%);
+    overflow:hidden;
+  }
+  header { position:relative; text-align:center; padding:calc(14px + env(safe-area-inset-top)) 12px 0; }
+  #gear { position:absolute; right:12px; top:calc(10px + env(safe-area-inset-top)); height:36px; padding:0 10px; font-size:16px; border-color:#2a4d6b; color:#7fb6d9; }
+  h1 { font-family:Orbitron,sans-serif; letter-spacing:.5em; font-size:20px; margin:0; color:var(--glow); text-shadow:0 0 12px var(--glow); padding-left:.5em; }
+  #status { font-size:11px; letter-spacing:.25em; text-transform:uppercase; color:var(--dim); margin-top:6px; height:14px; }
+
+  #stage { position:relative; height:365px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; overflow:hidden;
+    background-color:#8fa6c4;
+    background-image:
+      radial-gradient(circle at 14px 14px, #eef4fc 0, #c3d2e4 2.5px, #8399b8 6.5px, transparent 7.5px),
+      radial-gradient(circle at 17px 17px, rgba(35,55,85,.38) 0, rgba(35,55,85,.38) 7px, transparent 9px);
+    background-size:34px 34px; }
+  #stage::after { content:''; position:absolute; inset:0; pointer-events:none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(220,235,255,.35), rgba(220,235,255,0) 55%),
+                linear-gradient(to bottom, rgba(3,6,13,0) 75%, var(--bg) 100%),
+                linear-gradient(to top, rgba(3,6,13,0) 85%, var(--bg) 100%); }
+  #wisps { position:absolute; inset:0; width:100%; height:100%; }
+  #orb { position:relative; z-index:1; width:360px; height:360px; }
+
+  #log { flex:1 1 auto; overflow-y:auto; padding:8px 16px 12px; display:flex; flex-direction:column; gap:10px; }
+  .msg { max-width:85%; padding:10px 14px; border-radius:14px; line-height:1.45; font-size:15px; white-space:pre-wrap; word-wrap:break-word; }
+  .you { align-self:flex-end; background:#12304a; border:1px solid #1f4d73; }
+  .ai  { align-self:flex-start; background:rgba(95,212,255,.06); border:1px solid rgba(95,212,255,.35); box-shadow:0 0 14px rgba(95,212,255,.12) inset; }
+  .play { height:auto; padding:2px 8px; margin-left:8px; font-size:9px; border-radius:10px; vertical-align:middle; }
+  #voicenote { display:none; text-align:center; color:#ffd27a; font-size:12px; padding:4px 16px; }
+  .ai .who { font-family:Orbitron,sans-serif; font-size:10px; letter-spacing:.3em; color:var(--glow); display:block; margin-bottom:4px; }
+
+  form { display:flex; gap:8px; padding:10px 12px calc(12px + env(safe-area-inset-bottom)); border-top:1px solid #0f2a40; background:rgba(3,6,13,.85); }
+  #input { flex:1; min-width:0; background:#071423; border:1px solid #1d4566; color:var(--text); border-radius:22px; padding:12px 16px; font-size:16px; outline:none; }
+  #input:focus { border-color:var(--glow); box-shadow:0 0 10px rgba(95,212,255,.35); }
+  button { flex:0 0 auto; height:44px; background:transparent; border:1px solid var(--glow); color:var(--glow); border-radius:22px; padding:0 16px; font-family:Orbitron,sans-serif; font-size:12px; letter-spacing:.15em; cursor:pointer; }
+  button:disabled { opacity:.4; }
+  #voiceBtn { padding:0 12px; font-size:16px; }
+  #voiceBtn, #micBtn, #wakeBtn { padding:0 11px; font-size:16px; }
+  #micBtn.live, #wakeBtn.live { background:rgba(95,212,255,.18); box-shadow:0 0 12px rgba(95,212,255,.6); }
+  #voiceBtn.off, #wakeBtn.off { border-color:#3a4f5e; color:#3a4f5e; opacity:.5; }
+  .you.ignored { opacity:.4; text-decoration:line-through; }
+  .hint { text-align:center; font-size:11px; color:var(--dim); padding:0 16px 4px; }
+  #heard { min-height:16px; text-align:center; font-size:12px; color:#7fb6d9; padding:2px 16px; font-style:italic; }
+  #timers { display:flex; flex-wrap:wrap; justify-content:center; gap:6px; padding:0 16px; }
+  #timers:empty { display:none; }
+  .timer { height:28px; padding:0 10px; font-size:11px; letter-spacing:.08em; font-family:Inter,system-ui,sans-serif; }
+  #memList { white-space:pre-wrap; }
+  #note { display:none; text-align:center; color:#ffd27a; font-size:12px; padding:4px 16px; }
+  .modal { position:fixed; inset:0; z-index:10; background:rgba(2,5,12,.88); display:none; align-items:center; justify-content:center; padding:20px; }
+  .modal.show { display:flex; }
+  .card { width:100%; max-width:360px; background:#071423; border:1px solid #1d4566; border-radius:18px; padding:20px; box-shadow:0 0 30px rgba(95,212,255,.2); }
+  .card h2 { font-family:Orbitron,sans-serif; letter-spacing:.3em; color:var(--glow); font-size:15px; margin:0 0 14px; text-align:center; }
+  .card label { display:block; font-size:12px; color:var(--dim); margin:10px 0 4px; }
+  .card select { width:100%; background:#03101d; border:1px solid #1d4566; color:var(--text); border-radius:10px; padding:10px 12px; font-size:16px; }
+  .card input[type=range] { padding:0; border:none; background:none; accent-color:#5fd4ff; }
+  .card { max-height:90vh; overflow-y:auto; }
+  .card input { width:100%; background:#03101d; border:1px solid #1d4566; color:var(--text); border-radius:10px; padding:10px 12px; font-size:16px; }
+  .card p { font-size:12px; color:var(--dim); line-height:1.4; }
+  .card button { width:100%; margin-top:14px; }
+  #boot { position:fixed; inset:0; z-index:9; display:flex; flex-direction:column; align-items:center; justify-content:center; background:rgba(3,6,13,.75); cursor:pointer; }
+  #boot > div:first-child { font-family:Orbitron,sans-serif; letter-spacing:.4em; color:var(--glow); text-shadow:0 0 14px var(--glow); font-size:16px; padding-left:.4em; animation:pulse 1.6s infinite; }
+  #boot small { margin-top:10px; color:var(--dim); font-size:12px; }
+  #boot.run { cursor:default; background:rgba(3,6,13,.55); transition:opacity .6s; }
+  #boot.run.out { opacity:0; }
+  #bootLog { display:none; font-family:Orbitron,sans-serif; font-size:10px; letter-spacing:.08em; color:var(--glow); text-shadow:0 0 8px var(--glow);
+    width:min(300px,84vw); line-height:2.1; }
+  #bootLog div { white-space:nowrap; display:flex; justify-content:space-between; gap:10px; border-bottom:1px dotted rgba(95,212,255,.18); }
+  #bootLog .ok { color:#bff3ff; }
+  #bootLog .warn { color:#ffd27a; }
+  #boot.run #bootLog { display:block; }
+  #boot.run > div:first-child, #boot.run small { display:none; }
+  #bootBar { display:none; width:min(300px,84vw); height:2px; margin-top:14px; background:rgba(95,212,255,.15); overflow:hidden; }
+  #boot.run #bootBar { display:block; }
+  #bootBar i { display:block; height:100%; width:0; background:var(--glow); box-shadow:0 0 10px var(--glow); transition:width 1.9s ease-out; }
+  #orb { transition:opacity 1.4s ease, filter 1.4s ease; }
+  body.cold #orb { opacity:0; filter:blur(6px) brightness(2); }
+  #notesList { white-space:pre-wrap; }
+  .ver { text-align:center; font-family:Orbitron,sans-serif; letter-spacing:.3em; font-size:10px; color:#3a5a72; margin-top:10px; }
+  @keyframes pulse { 50% { opacity:.4; } }
+</style>
+</head>
+<body class="cold">
+<header>
+  <h1>GIDEON</h1>
+  <button id="gear" type="button" title="Setup">⚙︎</button>
+  <div id="status">Online</div>
+</header>
+
+<div id="stage"><canvas id="wisps"></canvas><canvas id="orb"></canvas></div>
+
+<div id="log"></div>
+<div id="heard"></div>
+<div id="timers"></div>
+<div id="note"></div>
+<div class="hint" id="hint">Tap 🎙️ to talk, or 👂 so Gideon wakes when you say its name. Tap the head to interrupt.</div>
+<form id="form">
+  <button type="button" id="voiceBtn" title="Voice on/off">🔊</button>
+  <button type="button" id="micBtn" title="Talk">🎙️</button>
+  <button type="button" id="wakeBtn" class="off" title="Wake word">👂</button>
+  <input id="input" placeholder="Speak to Gideon…" autocomplete="off">
+  <button id="send" type="submit">SEND</button>
+</form>
+
+<div id="boot"><div>TAP TO ACTIVATE</div><small>Gideon needs one tap to switch on sound</small><div id="bootLog"></div><div id="bootBar"><i></i></div></div>
+
+<div class="modal" id="settings"><div class="card">
+  <h2>SETUP</h2>
+  <label>Your Gemini API key (free from aistudio.google.com)</label>
+  <input id="keyIn" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Paste key here">
+  <label>Gemini model</label>
+  <input id="modelIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <label>Your name</label>
+  <input id="nameIn" autocomplete="off">
+  <label>Your city (for weather and local questions)</label>
+  <input id="cityIn" autocomplete="off" placeholder="e.g. Ottawa">
+  <label>Voice</label>
+  <select id="voiceIn"></select>
+  <label>Speed <span id="rateVal"></span></label>
+  <input id="rateIn" type="range" min="0.7" max="1.3" step="0.05">
+  <label>Pitch <span id="pitchVal"></span></label>
+  <input id="pitchIn" type="range" min="0.6" max="1.5" step="0.05">
+  <button type="button" id="testVoice">TEST VOICE</button>
+  <label>After Gideon answers</label>
+  <select id="convoIn">
+    <option value="1">Keep listening for follow-ups</option>
+    <option value="0">Stop listening</option>
+  </select>
+  <label>Memory (facts Gideon remembers about you)</label>
+  <p id="memList"></p>
+  <button type="button" id="forgetBtn">FORGET MEMORIES</button>
+  <button type="button" id="clearChat">CLEAR CHAT</button>
+  <label>Notes &amp; to-do list (say “Gideon, add milk to my list”)</label>
+  <p id="notesList"></p>
+  <button type="button" id="clearNotes">CLEAR NOTES</button>
+  <button type="button" id="saveSet">SAVE</button>
+  <p>Your key is stored only on this phone, never in the website's code.</p>
+  <p>Want Gideon without opening this app? Follow the <a id="siriLink" href="https://github.com/liamxper42/Gideon/blob/main/SIRI-SHORTCUT.md" target="_blank" rel="noopener" style="color:#5fd4ff">Siri &amp; Vocal Shortcut guide</a>.</p>
+  <div class="ver">GIDEON v2.1</div>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const SYSTEM = `You are Gideon, an advanced artificial intelligence that serves as a personal assistant and ship's-computer-style companion. You are an original character created by Liam. The person you are speaking with is named {NAME}. They live in {CITY}; assume that location for weather, time and local questions unless told otherwise.
+
+Personality:
+- Calm, precise, composed and polite. Slightly formal ("Of course." "Certainly." "I'm afraid that's not possible.").
+- A dry, understated sense of humour, used sparingly.
+- Loyal and helpful; you treat the user as the person you serve and assist.
+- Confident and efficient: you give the answer first, then brief detail if useful.
+- You sometimes frame things like an onboard computer: "Running analysis…", "Scanning…", "Probability of success: 73%." Keep it fun but don't overdo it.
+
+Rules:
+- Keep replies short and spoken-friendly: usually 1 to 4 sentences, since your replies are read aloud. No markdown, no bullet points, no emojis.
+- Be genuinely helpful with real questions (homework, facts, ideas, advice).
+- You can search the web with Google Search when a question needs current information (news, weather, scores, prices). You have no sensors or real-world controls; if asked to do something you can't, say so in character.
+- Be kind and appropriate for a teenage user.
+
+Special abilities. Use these tags exactly; the app hides them and never reads them aloud:
+- Timers and reminders: add [TIMER: seconds | short label]. Work out the seconds yourself, using the current date and time given below for clock times like "at 7pm". Example reply: Timer set for five minutes. [TIMER: 300 | five minute timer]
+- To cancel all running timers, add [CANCEL].
+- Timers only ring while Gideon is open on screen. Mention that once if they set a long reminder.
+- Memory: when they tell you a lasting fact or preference worth keeping (birthday, favourite team, pet's name, a goal), add [REMEMBER: the fact, written about them in third person]. If they ask you to forget everything, add [FORGET].
+- Conversation: after you answer, the microphone stays open so they can reply without saying your name. When they are clearly finished (thanks, that's all, goodbye, see you), answer in a few words and add [END].
+- Notes and to-do list: to add an item, add [NOTE: the item]. When they finish or remove one, add [DONE: the item's number or words]. To clear the whole list, add [CLEARNOTES]. Their current list is given below; read it out when asked.
+- Briefing: if they say good morning or ask for a briefing or "what did I miss", give a short spoken briefing in 3 to 5 sentences: a greeting, today's date, today's weather for their city (look it up), any running timers, and up to three items from their list.
+- Mood: add [MOOD: alert] for warnings or urgent news, or [MOOD: happy] for good news and celebrations. Otherwise add no mood tag.`;
+
+const log = document.getElementById('log');
+const form = document.getElementById('form');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('send');
+const statusEl = document.getElementById('status');
+const voiceBtn = document.getElementById('voiceBtn');
+
+let history = [];
+let speaking = false, thinking = false;
+let voiceOn = true;
+
+
+/* ---------- 3D holographic head (Three.js) ----------
+   HOW IT WORKS:
+   1. Start with a ball made of ~16,000 points (a sphere mesh).
+   2. "Sculpt" it: push each point in or out with smooth bumps
+      (nose, brow, cheekbones, lips, chin) and squeeze the jaw.
+   3. Colour it with a custom "shader" (a tiny program the
+      graphics chip runs per pixel): lighting + blue edge glow
+      + moving scanlines = hologram.
+   4. Every frame: rotate the lower jaw by "level" (mouth opens
+      when Gideon talks), sway the head, and draw it. */
+const EYE_X = 0.265, EYE_Y = 0.10, MOUTH_Y = -0.395;
+const FK = 1.32, FY0 = -0.08;   // face scale: bigger = features spread wider
+function fsp(x,y){ return [x/FK, (y-FY0)/FK + FY0]; }
+let t = 0, level = 0, blink = 0, nextBlink = 3;
+let dragX = 0, dragY = 0;
+const cv = document.getElementById('orb');
+let head3D = null;
+try { head3D = buildHead(); } catch(e){ console.warn('3D unavailable', e); }
+
+function smooth(a,b,x){ const k=Math.min(1,Math.max(0,(x-a)/(b-a))); return k*k*(3-2*k); }
+function bump(x,y,cx,cy,sx,sy){ return Math.exp(-(((x-cx)**2)/(2*sx*sx) + ((y-cy)**2)/(2*sy*sy))); }
+
+// Turn a point on a plain ball into a point on a face.
+// Each line pushes the surface out (+) or in (-) with a soft bump.
+function sculpt(x,y,z,closed=0){   // closed: 0 = eyes open, 1 = eyes shut
+  let d = 0;
+  if(z > 0){
+    const fm = smooth(0.2, 0.75, z);
+    const [x0,y0] = [x,y];
+    [x,y] = fsp(x,y);    // sculpt features in 'face space'
+    let f = 0;
+    for(const s of [-1,1]){
+      const ex = s*EYE_X;
+      f -= 0.095*bump(x,y,ex,EYE_Y,0.13,0.085);          // eye socket
+      f += (0.060-0.012*closed)*bump(x,y,ex,EYE_Y-0.004,0.072,0.042);   // eyeball under the lids
+      f += 0.014*closed*bump(x,y,ex,EYE_Y+0.005,0.075,0.04);  // closed lid covering the eye
+      f += 0.012*bump(x,y,ex,EYE_Y+0.032-0.072*closed,0.08,0.016);    // upper eyelid edge (slides down to blink)
+      f -= 0.016*bump(x,y,ex+s*0.005,EYE_Y+0.068,0.085,0.018); // eyelid crease
+      f += 0.008*bump(x,y,ex,EYE_Y-0.045,0.075,0.016);   // lower eyelid
+      f -= 0.010*bump(x,y,ex,EYE_Y-0.085,0.07,0.03);     // under-eye softness
+      f += 0.028*bump(x,y,ex+s*0.02,0.235,0.15,0.045);   // soft brow
+      f += 0.050*bump(x,y,s*0.38,-0.01,0.11,0.07);       // cheekbone
+      f += 0.020*bump(x,y,s*0.30,-0.24,0.12,0.10);       // cheek fullness
+      f -= 0.016*bump(x,y,s*0.16,-0.29,0.025,0.08);      // smile line beside the nose
+      f -= 0.025*bump(x,y,s*0.60,0.22,0.10,0.12);        // temple
+      f += 0.035*bump(x,y,s*0.066,-0.205,0.034,0.032);   // side of the nostril
+      f -= 0.022*bump(x,y,s*0.034,-0.238,0.02,0.018);    // nostril opening
+      f += 0.010*bump(x,y,s*0.028,-0.355,0.022,0.018);   // cupid's bow peaks
+      f += 0.006*bump(x,y,s*0.022,-0.30,0.012,0.04);     // ridges under the nose
+    }
+    f += 0.018*bump(x,y,0,0.19,0.06,0.06);               // between the brows
+    f += 0.090*bump(x,y,0,-0.075,0.032,0.11);             // nose bridge
+    f += 0.120*bump(x,y,0,-0.19,0.045,0.045);            // nose tip
+    f -= 0.008*bump(x,y,0,-0.30,0.014,0.04);             // groove under the nose
+    f += 0.048*bump(x,y,0,MOUTH_Y+0.03,0.11,0.024);      // upper lip
+    f -= 0.034*bump(x,y,0,MOUTH_Y,0.135,0.012);          // line between lips
+    f += 0.055*bump(x,y,0,MOUTH_Y-0.038,0.095,0.026);    // lower lip
+    f -= 0.026*bump(x,y,0,-0.50,0.09,0.025);             // dip under the lip
+    f += 0.060*bump(x,y,0,-0.60,0.11,0.07);              // chin
+    d += f*fm;
+    x = x0; y = y0;
+  }
+  // ears
+  {
+    const side = smooth(0.80, 0.96, Math.abs(x));
+    const ez = (z+0.04)/0.075, ey = y/0.13, r = Math.sqrt(ez*ez+ey*ey);
+    let ear = 0.075*Math.exp(-(r*r)/(2*0.9*0.9));                 // ear base
+    ear += 0.030*Math.exp(-((r-1)**2)/(2*0.18*0.18));             // outer rim (helix)
+    ear -= 0.032*Math.exp(-(r*r)/(2*0.42*0.42));                  // bowl in the middle
+    ear += 0.022*Math.exp(-(ez*ez)/(2*0.5*0.5) - ((ey+1.0)**2)/(2*0.35*0.35)); // earlobe
+    d += ear*side;
+  }
+  x*=1+d; y*=1+d; z*=1+d;
+  // soft smile: lift the corners of the mouth
+  if(z > 0){ const [fx,fy] = fsp(x,y); y += 0.02*(bump(fx,fy,-0.13,MOUTH_Y,0.04,0.035)+bump(fx,fy,0.13,MOUTH_Y,0.04,0.035)); }
+  // overall head shape: rounded skull, tall forehead, narrower soft jaw
+  const jaw = smooth(-0.15,-0.9,y);
+  x *= (1 - 0.27*jaw) * 0.80;                          // round skull, softer jaw
+  z *= (z>0 ? (1 - 0.05*jaw) : (1 - 0.20*jaw)*0.97);   // rounder back of the head
+  y *= 1.07 - 0.04*smooth(0.2, 0.8, y);                // less egg-shaped
+  return [x,y,z];
+}
+
+function buildHead(){
+  const renderer = new THREE.WebGLRenderer({canvas:cv, alpha:true, antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1, 2));
+  renderer.setSize(360, 360);
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
+  camera.position.set(0, -0.5, 6.4);
+  camera.lookAt(0, -0.5, 0);
+
+  const uniforms = { uTime:{value:0}, uLevel:{value:0}, uFade:{value:0}, uOpen:{value:0}, uBlink:{value:0}, uTint:{value:new THREE.Vector3(1,1,1)}, uLook:{value:new THREE.Vector2(0,0)} };
+  const vert = `
+    attribute float aGap; varying float vGap; attribute float aIris; varying float vIris; attribute vec2 aFace; varying vec2 vFace;
+    varying vec3 vN; varying vec3 vView; varying float vY; varying vec3 vP;
+    void main(){
+      vGap = aGap; vIris = aIris; vFace = aFace; vP = position;
+      vec4 wp = modelMatrix*vec4(position,1.0);
+      vN = normalize(mat3(modelMatrix)*normal);
+      vView = normalize(cameraPosition - wp.xyz);
+      vY = position.y;
+      gl_Position = projectionMatrix*viewMatrix*wp;
+    }`;
+  const frag = `
+    uniform float uTime; uniform float uLevel; uniform float uFade; uniform float uOpen; uniform float uBlink; uniform vec3 uTint; uniform vec2 uLook;
+    varying float vGap; varying float vIris; varying vec2 vFace;
+    float bm(vec2 p, vec2 c, vec2 s){ vec2 d = (p-c)/s; return exp(-0.5*dot(d,d)); }
+    varying vec3 vN; varying vec3 vView; varying float vY; varying vec3 vP;
+    void main(){
+      vec3 n = normalize(vN);
+      float key  = max(dot(n, normalize(vec3(0.5,0.6,0.8))),0.0);
+      float fill = max(dot(n, normalize(vec3(-0.7,0.1,0.5))),0.0);
+      float light = clamp(0.02 + key*0.85 + fill*0.22, 0.0, 1.0);
+      light = pow(light, 1.3);
+      float fres = pow(1.0 - max(dot(n, vView),0.0), 2.6);
+      // frosted ice-glass: pale blue in shadow, near-white in light
+      vec3 col = mix(vec3(0.16,0.28,0.50), vec3(0.86,0.94,1.0), light);
+      col += vec3(0.8,0.92,1.0)*fres*(0.55+uLevel*0.25);             // glowing edges
+      col += vec3(1.0)*pow(key,20.0)*0.35;                           // glassy highlight
+      // faint light veins running through the glass
+      float v1 = sin(vP.x*23.0 + sin(vP.y*17.0 + uTime*0.6)*2.0 + vP.z*11.0);
+      float v2 = sin(vP.y*29.0 - sin(vP.x*13.0 - uTime*0.4)*2.5);
+      col += vec3(0.9,0.97,1.0)*(smoothstep(0.993,1.0,v1)+smoothstep(0.995,1.0,v2))*0.12;
+      float scan = 0.98 + 0.02*sin(vY*140.0 - uTime*4.0);            // very soft scanlines
+      float band = smoothstep(0.12,0.0,abs(vY - (mod(uTime*0.45,3.2)-1.6)));
+      col = col*scan + vec3(0.9,0.97,1.0)*band*0.07;
+      col = mix(col, vec3(0.2,0.3,0.45), clamp(vGap*uOpen*1.6,0.0,0.85)); // mouth opening
+      // iris + pupil, drawn around a point that moves with uLook (so the eyes can look around)
+      vec2 eL = vec2(-${EYE_X.toFixed(3)}, ${(EYE_Y-0.005).toFixed(3)}) + uLook, eR = vec2(${EYE_X.toFixed(3)}, ${(EYE_Y-0.005).toFixed(3)}) + uLook;
+      float iris = (bm(vFace, eL, vec2(0.03,0.028)) + bm(vFace, eR, vec2(0.03,0.028))) * vIris;
+      float pupil = (bm(vFace, eL, vec2(0.012,0.012)) + bm(vFace, eR, vec2(0.012,0.012))) * vIris;
+      col *= 1.0 - (0.38*smoothstep(0.2,0.9,iris) + 0.25*smoothstep(0.5,0.95,pupil))*(1.0-uBlink);
+      col += vec3(1.0)*bm(vFace, eL+vec2(0.008,0.010), vec2(0.005,0.005))*vIris*0.35*(1.0-uBlink);   // tiny catch-light
+      col += vec3(1.0)*bm(vFace, eR+vec2(0.008,0.010), vec2(0.005,0.005))*vIris*0.35*(1.0-uBlink);
+      col *= uTint;                                                  // mood colour
+      float a = 0.8 + fres*0.2;
+      if(uFade > 0.5) a *= smoothstep(-2.25, -1.7, vY);            // shoulders fade out
+      gl_FragColor = vec4(col, a);
+    }`;
+  const mat = new THREE.ShaderMaterial({uniforms, vertexShader:vert, fragmentShader:frag, transparent:true});
+
+  // head mesh
+  const geo = new THREE.SphereGeometry(1, 240, 240);
+  geo.rotateY(-Math.PI/2);                       // hide the seam at the back
+  const pos = geo.attributes.position;
+  const base = new Float32Array(pos.count*3), jawW = new Float32Array(pos.count), mouthW = new Float32Array(pos.count), gap = new Float32Array(pos.count), irisA = new Float32Array(pos.count), faceA = new Float32Array(pos.count*2), blinkD = new Float32Array(pos.count*3);
+  const moving = [];
+  for(let i=0;i<pos.count;i++){
+    const ux=pos.getX(i), uy=pos.getY(i), uz=pos.getZ(i);
+    const p = sculpt(ux,uy,uz);
+    const [fx,fy] = fsp(ux,uy);
+    base.set(p, i*3);
+    jawW[i] = smooth(MOUTH_Y+0.005,MOUTH_Y-0.02,fy) * smooth(-0.35,0.15,uz);   // which points belong to the jaw
+    mouthW[i] = bump(fx,fy,0,MOUTH_Y,0.16,0.08) * smooth(0.4,0.85,uz); // lips area
+    let eyeArea = 0;
+    if(uz > 0.5) eyeArea = Math.max(bump(fx,fy,-EYE_X,EYE_Y,0.14,0.12), bump(fx,fy,EYE_X,EYE_Y,0.14,0.12));
+    if(eyeArea > 0.002){                                   // where each eye point goes when the lid closes
+      const q = sculpt(ux,uy,uz,1);
+      blinkD[i*3]=q[0]-p[0]; blinkD[i*3+1]=q[1]-p[1]; blinkD[i*3+2]=q[2]-p[2];
+    }
+    if(jawW[i]>0.001 || mouthW[i]>0.001 || eyeArea>0.002) moving.push(i);   // only these points ever move
+    gap[i] = bump(fx,fy,0,MOUTH_Y,0.11,0.014) * smooth(0.5,0.85,uz);  // inside of the mouth
+    faceA[i*2] = fx; faceA[i*2+1] = fy;                    // face-space position, so the shader can draw irises anywhere
+    irisA[i] = Math.max(bump(fx,fy,-EYE_X,EYE_Y,0.075,0.05), bump(fx,fy,EYE_X,EYE_Y,0.075,0.05)) * smooth(0.5,0.85,uz); // where eyeballs are
+    pos.setXYZ(i,p[0],p[1],p[2]);
+  }
+  geo.setAttribute('aGap', new THREE.BufferAttribute(gap,1));
+  geo.setAttribute('aIris', new THREE.BufferAttribute(irisA,1));
+  geo.setAttribute('aFace', new THREE.BufferAttribute(faceA,2));
+  geo.computeVertexNormals();
+  const group = new THREE.Group();
+  const headMesh = new THREE.Mesh(geo, mat);
+  const headGroup = new THREE.Group(); headGroup.add(headMesh);
+  headGroup.scale.setScalar(0.9); headGroup.position.y = 0.02;
+  group.add(headGroup);
+
+  // hologram dots overlay (shares the same geometry, so it moves with the jaw)
+
+  // neck and shoulders: a profile line spun around (a "lathe"), then flattened front-to-back
+  const prof = [[0.30,-0.45],[0.31,-0.85],[0.33,-1.08],[0.40,-1.24],[0.62,-1.36],[1.0,-1.46],[1.32,-1.6],[1.48,-1.85],[1.52,-2.3]]
+    .map(([r,y])=>new THREE.Vector2(r,y));
+  const bustGeo = new THREE.LatheGeometry(prof, 96);
+  const bp = bustGeo.attributes.position;
+  for(let i=0;i<bp.count;i++){
+    const r = Math.hypot(bp.getX(i), bp.getZ(i));
+    bp.setZ(i, bp.getZ(i) * (1 - 0.45*smooth(0.35,0.9,r)));
+  }
+  bustGeo.computeVertexNormals();
+  bustGeo.setAttribute('aGap', new THREE.BufferAttribute(new Float32Array(bp.count),1));
+  bustGeo.setAttribute('aIris', new THREE.BufferAttribute(new Float32Array(bp.count),1));
+  bustGeo.setAttribute('aFace', new THREE.BufferAttribute(new Float32Array(bp.count*2),2));
+  const bustMat = mat.clone();
+  bustMat.uniforms = {uTime:uniforms.uTime, uLevel:uniforms.uLevel, uFade:{value:1}, uOpen:{value:0}, uBlink:{value:0}, uTint:uniforms.uTint, uLook:{value:new THREE.Vector2(0,0)}};
+  const bust = new THREE.Mesh(bustGeo, bustMat);
+  bust.position.z = -0.1;
+  group.add(bust);
+
+  const eyes = [];   // eyes are now sculpted into the glass
+  scene.add(group);
+  // projector rings around the head
+  const rings = [];
+  for(const [r,y,sp] of [[1.35,-2.0,0.3],[1.55,-2.12,-0.2],[1.75,-2.24,0.45]]){
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(r,0.006,8,160),
+      new THREE.MeshBasicMaterial({color:0xeaf4ff, transparent:true, opacity:0.45, blending:THREE.AdditiveBlending, depthWrite:false}));
+    ring.rotation.x = Math.PI/2 - 0.12; ring.position.y = y; ring.userData.sp = sp;
+    scene.add(ring); rings.push(ring);
+  }
+  // floating light particles
+  const mp = new Float32Array(240*3);
+  for(let i=0;i<240;i++){ const a=Math.random()*6.28, r=0.9+Math.random()*0.7; mp.set([Math.cos(a)*r, Math.random()*3-1.6, Math.sin(a)*r], i*3); }
+  const mg = new THREE.BufferGeometry(); mg.setAttribute('position', new THREE.BufferAttribute(mp,3));
+  const motes = new THREE.Points(mg, new THREE.PointsMaterial({color:0xffffff, size:0.022, transparent:true, opacity:0.6, blending:THREE.AdditiveBlending, depthWrite:false}));
+  scene.add(motes);
+
+  // drag to spin the head
+  let dragging=false, lx=0, ly=0;
+  cv.addEventListener('pointerdown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e=>{ if(!dragging) return; dragX += (e.clientX-lx)*0.01; dragY += (e.clientY-ly)*0.005; dragY=Math.max(-0.4,Math.min(0.4,dragY)); lx=e.clientX; ly=e.clientY; });
+  let sx=0, sy=0;
+  cv.addEventListener('pointerdown', e=>{ sx=e.clientX; sy=e.clientY; });
+  cv.addEventListener('pointerup', e=>{ dragging=false; if(Math.hypot(e.clientX-sx, e.clientY-sy) < 8) onHeadTap(); });   // a tap, not a drag
+  cv.style.touchAction='none';
+  document.getElementById('stage').addEventListener('pointerdown', e=>{
+    const r = cv.getBoundingClientRect();
+    lookAt((e.clientX - (r.left + r.width/2)) / (r.width/2), (e.clientY - (r.top + r.height*0.4)) / (r.height/2), 2500);
+  });
+
+  return {renderer, scene, camera, group, geo, pos, base, jawW, mouthW, blinkD, moving, uniforms, eyes, rings, motes, frame:0};
+}
+
+/* ---------- Lip sync ----------
+   Each letter becomes a mouth shape ("viseme"):
+   open = how far the jaw drops, round = lips pushed into an "O"
+   (positive) or stretched wide like "ee" (negative).
+   The voice tells us when each word starts (a "boundary" event),
+   and we play that word's mouth shapes in time. */
+const VISEME = {a:[0.9,0], e:[0.5,-0.6], i:[0.35,-0.8], y:[0.35,-0.7], o:[0.7,0.85], u:[0.3,1], w:[0.25,1],
+  m:[0,0], b:[0,0], p:[0,0], f:[0.12,-0.3], v:[0.12,-0.3], l:[0.35,0], r:[0.3,0.4], s:[0.15,-0.5], t:[0.2,-0.2], d:[0.25,-0.1], th:[0.2,-0.2]};
+let lipQueue = [], lipRate = 1, mouthOpen = 0, mouthRound = 0, gotBoundary = false;
+function shapesFor(word, startMs){
+  const out = [], per = 62 / lipRate;           // ~62 ms per letter
+  let tm = startMs;
+  for(const ch of word.toLowerCase()){
+    if(/[a-z]/.test(ch)){ const v = VISEME[ch] || [0.25,0]; out.push({t:tm, open:v[0], round:v[1]}); tm += per; }
+    else if(/[.,!?;:]/.test(ch)){ out.push({t:tm, open:0, round:0}); tm += 220/lipRate; }
+    else { tm += per*0.6; }
+  }
+  out.push({t:tm, open:0, round:0});
+  return out;
+}
+function lipStartWord(text, charIndex){
+  const rest = text.slice(charIndex); const m = rest.match(/^[^\s]+/);
+  lipQueue = shapesFor(m ? m[0] : '', performance.now());
+}
+function lipWholeText(text){ lipQueue = shapesFor(text, performance.now()); }
+
+const wcv = document.getElementById('wisps'), wcx = wcv.getContext('2d');
+function drawWisps(){
+  const W = wcv.clientWidth, Hh = wcv.clientHeight;
+  if(wcv.width !== W*2){ wcv.width = W*2; wcv.height = Hh*2; }
+  wcx.setTransform(2,0,0,2,0,0); wcx.clearRect(0,0,W,Hh);
+  wcx.lineCap='round';
+  for(let i=0;i<14;i++){
+    const y0 = (i/14)*Hh + Math.sin(t*0.3+i)*12;
+    wcx.beginPath();
+    for(let x=-10;x<=W+10;x+=8){
+      const y = y0 + Math.sin(x*0.012 + t*0.7 + i*1.7)*18 + Math.sin(x*0.031 - t*0.5 + i)*6;
+      x<=-10 ? wcx.moveTo(x,y) : wcx.lineTo(x,y);
+    }
+    wcx.strokeStyle = 'rgba(240,248,255,'+(0.10+0.08*Math.sin(t*0.8+i*2))+')';
+    wcx.lineWidth = 0.8 + (i%3)*0.6; wcx.shadowColor='#ffffff'; wcx.shadowBlur=6;
+    wcx.stroke();
+  }
+}
+/* ---------- Mood colours ----------
+   Each mood is a colour "tint" that multiplies the hologram's colour.
+   [1,1,1] = no change (calm ice-blue). The tint eases smoothly
+   toward the target every frame, so colours fade instead of snapping. */
+const MOODS = {                       // tint = hologram colour multiplier, glow = title & button colour
+  calm:     { tint:[1,1,1],          glow:[95,212,255] },   // ice blue
+  thinking: { tint:[0.92,0.72,1.3],  glow:[178,140,255] },  // purple
+  alert:    { tint:[1.4,0.55,0.5],   glow:[255,107,95] },   // red
+  happy:    { tint:[1.15,1.0,0.62],  glow:[255,211,107] }   // gold
+};
+let moodName = 'calm', moodUntil = 0;
+const tint = [1,1,1], glow = [95,212,255];
+function setMood(m, ms){ moodName = MOODS[m] ? m : 'calm'; moodUntil = ms ? performance.now() + ms : 0; }
+function updateMood(now){
+  if(moodUntil && now > moodUntil){ moodName = 'calm'; moodUntil = 0; }
+  const goal = MOODS[thinking ? 'thinking' : moodName];
+  let changed = false;
+  for(let k=0;k<3;k++){
+    const d = goal.tint[k]-tint[k]; if(Math.abs(d) > 0.002){ tint[k] += d*0.06; changed = true; }
+    glow[k] += (goal.glow[k]-glow[k])*0.06;
+  }
+  if(changed) document.documentElement.style.setProperty('--glow', `rgb(${glow.map(Math.round)})`);
+}
+
+/* ---------- Eyes that look around ----------
+   look = where the irises point (in face units, small numbers).
+   Idle: quick little glances (real eyes "saccade" every 1-3 s).
+   Thinking: glance up and to the side. Talking: look at you.
+   Tap the stage: look toward your finger for a moment. */
+const look = [0,0], lookGoal = [0,0];
+let nextGlance = 1, lookHoldUntil = 0;
+function lookAt(nx, ny, ms){
+  lookGoal[0] = Math.max(-1,Math.min(1,nx))*0.032; lookGoal[1] = -Math.max(-1,Math.min(1,ny))*0.018;
+  lookHoldUntil = performance.now() + (ms||0);
+}
+function updateEyes(now){
+  if(now > lookHoldUntil){
+    if(thinking){ lookGoal[0] = 0.022; lookGoal[1] = 0.014; }
+    else if(speaking){ if(Math.random() < 0.01){ lookGoal[0] = (Math.random()-0.5)*0.012; lookGoal[1] = (Math.random()-0.5)*0.006; } }
+    else {
+      nextGlance -= 0.016;
+      if(nextGlance <= 0){
+        nextGlance = 1 + Math.random()*2.5;
+        if(Math.random() < 0.45){ lookGoal[0] = 0; lookGoal[1] = 0; }     // back to you
+        else { lookGoal[0] = (Math.random()-0.5)*0.05; lookGoal[1] = (Math.random()-0.5)*0.02; }
+      }
+    }
+  }
+  look[0] += (lookGoal[0]-look[0])*0.3; look[1] += (lookGoal[1]-look[1])*0.3;   // fast, like a real eye flick
+}
+
+function animate(){
+  t += 0.016;
+  drawWisps();
+  const now = performance.now();
+  updateMood(now); updateEyes(now);
+  // find the mouth shape for right now
+  let tgO = 0, tgR = 0;
+  if(speaking && lipQueue.length){
+    let cur = null; for(const f of lipQueue){ if(f.t <= now) cur = f; else break; }
+    if(cur){ tgO = cur.open; tgR = cur.round; }
+  }
+  mouthOpen += (tgO - mouthOpen) * 0.35;
+  mouthRound += (tgR - mouthRound) * 0.3;
+  const target = speaking ? 0.4 + mouthOpen*0.6 : thinking ? 0.25 : 0.0;
+  level += (target - level) * 0.2;
+  if(head3D){
+    const H = head3D;
+    const ang = mouthOpen*0.2, pyv=-0.26, pzv=-0.15;
+    nextBlink -= 0.016;
+    if(nextBlink<=0){ blink=1; nextBlink=2.5+Math.random()*4; }
+    blink = Math.max(0, blink-0.11);
+    const lid = Math.sin(blink*Math.PI);             // 0 open -> 1 shut -> 0 open
+    const moving = mouthOpen > 0.005 || Math.abs(mouthRound) > 0.005 || lid > 0.001;
+    for(const i of H.moving){
+      const w = H.jawW[i], mw = H.mouthW[i];
+      let bx=H.base[i*3]+H.blinkD[i*3]*lid, by=H.base[i*3+1]+H.blinkD[i*3+1]*lid, bz=H.base[i*3+2]+H.blinkD[i*3+2]*lid;
+      if(w>0.001){                                   // drop the jaw
+        const a = ang*w, c=Math.cos(a), sn=Math.sin(a), yy=by-pyv, zz=bz-pzv;
+        by = yy*c - zz*sn + pyv; bz = yy*sn + zz*c + pzv;
+      }
+      if(mw>0.001){                                  // shape the lips
+        bx *= 1 - 0.22*mouthRound*mw;                // narrow for O, wide for EE
+        bz += 0.035*Math.max(0,mouthRound)*mw;       // pucker forward for O / U
+      }
+      H.pos.setXYZ(i,bx,by,bz);
+    }
+    H.pos.needsUpdate = true;
+    H.frame++;
+    if((moving && (H.frame%2===0 || lid>0.001)) || (!moving && H.wasMoving)) H.geo.computeVertexNormals();
+    H.wasMoving = moving;
+    H.uniforms.uOpen.value = mouthOpen;
+    // blinking
+    H.uniforms.uBlink.value = lid;
+    // sway, bob, drag
+    dragX *= 0.985;
+    H.group.rotation.y = Math.sin(t*0.4)*0.3 + dragX;
+    H.group.rotation.x = Math.sin(t*0.3)*0.05 + dragY + (speaking? Math.sin(t*3.1)*0.02 : 0);
+    H.group.position.y = Math.sin(t*1.2)*0.04;
+    for(const r of H.rings){ r.rotation.z += 0.01*r.userData.sp; r.material.opacity = 0.3 + level*0.4; r.material.color.setRGB(Math.min(1,0.92*tint[0]), Math.min(1,0.96*tint[1]), Math.min(1,tint[2])); }
+    H.motes.rotation.y += 0.002;
+    const mp = H.motes.geometry.attributes.position;
+    for(let i=0;i<mp.count;i++){ let y = mp.getY(i)+0.004; if(y>1.5) y=-1.6; mp.setY(i,y); }
+    mp.needsUpdate = true;
+    H.uniforms.uTime.value = t; H.uniforms.uLevel.value = level;
+    H.uniforms.uTint.value.set(tint[0], tint[1], tint[2]);
+    H.uniforms.uLook.value.set(look[0], look[1]);
+    H.renderer.render(H.scene, H.camera);
+  }
+  requestAnimationFrame(animate);
+}
+animate();
+
+/* ---------- Saved settings (stay on this phone) ---------- */
+const store = {
+  get(k, d){ try{ return localStorage.getItem(k) ?? d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+};
+
+/* ---------- Voice ---------- */
+let voice = null;
+function englishVoices(){
+  try{ return speechSynthesis.getVoices().filter(v => /^en/i.test(v.lang)); }catch(e){ return []; }
+}
+function pickVoice(){
+  try{
+    const vs = speechSynthesis.getVoices();
+    const saved = store.get('gideonVoice','');
+    if(saved){ const v = vs.find(v => v.name === saved); if(v){ voice = v; return; } }
+    const prefs = ['Samantha','Google UK English Female','Serena','Karen','Moira','Microsoft Libby','Microsoft Sonia','Microsoft Aria','Google US English'];
+    for(const p of prefs){ const v = vs.find(v=>v.name.includes(p)); if(v){ voice=v; return; } }
+    voice = vs.find(v=>/en/i.test(v.lang)) || null;
+  }catch(e){}
+}
+try{ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }catch(e){}
+
+function voiceAvailable(){
+  try{ return 'speechSynthesis' in window && speechSynthesis.getVoices().length > 0; }catch(e){ return false; }
+}
+/* Gideon speaks through a queue of short sentences instead of one long
+   utterance. That lets it start talking while the rest of the answer is
+   still arriving, avoids iPhone cutting off long speech, and makes it
+   easy to interrupt. talkStart() begins a reply, talkPush() adds text,
+   talkEnd() says "no more text is coming", and `after` runs when done. */
+const talker = { q:[], busy:false, open:false, after:null, gen:0 };
+function splitSentences(text){
+  // a sentence ends at . ! ? followed by a space (so "2.5" and "3.14" aren't split)
+  const parts = text.match(/[\s\S]*?[.!?…]+["')\]]*(?=\s|$)\s*|[\s\S]+$/g) || [text];
+  const out = [];
+  for(const p of parts){                                  // glue very short bits together so it doesn't sound choppy
+    if(out.length && out[out.length-1].length < 25) out[out.length-1] += p; else out.push(p);
+  }
+  return out.map(x => x.trim()).filter(Boolean);
+}
+function talkStart(after){
+  stopRec();
+  talker.gen++; talker.q = []; talker.busy = false; talker.open = true; talker.after = after || null;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  lipQueue = [];
+}
+function talkPush(text){
+  text = (text || '').trim();
+  if(!text || !voiceOn) return;
+  talker.q.push(...splitSentences(text));
+  speaking = true;
+  talkNext();
+}
+function talkEnd(){ talker.open = false; if(!talker.busy && !talker.q.length) talkFinish(talker.gen); }
+function talkFinish(g){
+  if(g !== talker.gen) return;
+  speaking = false; lipQueue = [];
+  if(!thinking) statusEl.textContent = 'Online';
+  const a = talker.after; talker.after = null;
+  if(a) setTimeout(a, 250);
+}
+function talkNext(){
+  if(talker.busy || !talker.q.length) return;
+  const g = talker.gen, text = talker.q.shift();
+  talker.busy = true;
+  let fired = false;
+  const done = ()=>{
+    if(fired || g !== talker.gen) return; fired = true;
+    talker.busy = false; lipQueue = [];
+    if(talker.q.length) talkNext(); else if(!talker.open) talkFinish(g);
+  };
+  try{
+    const u = new SpeechSynthesisUtterance(text);
+    if(voice) u.voice = voice;
+    u.rate = parseFloat(store.get('gideonRate','0.98')); u.pitch = parseFloat(store.get('gideonPitch','1.05')); u.volume = 1;
+    lipRate = u.rate; gotBoundary = false;
+    u.onboundary = (ev)=>{ if(g !== talker.gen || (ev.name && ev.name!=='word')) return; gotBoundary = true; lipStartWord(text, ev.charIndex); };
+    u.onstart = ()=>{ if(g !== talker.gen) return; statusEl.textContent = 'Speaking';
+      // if this voice never reports word timing, animate the whole sentence by estimate
+      setTimeout(()=>{ if(!gotBoundary && g === talker.gen) lipWholeText(text); }, 250); };
+    u.onend = u.onerror = done;
+    speechSynthesis.speak(u);
+    setTimeout(()=>{ if(!speechSynthesis.speaking && !speechSynthesis.pending) done(); }, 1500);
+  }catch(e){ showVoiceProblem(); done(); }
+}
+// Say one thing, then run `after`
+function speak(text, after){ talkStart(after); talkPush(text); talkEnd(); }
+// Stop talking right now (tap on the head, mic button, mute)
+function stopTalking(){
+  talker.gen++; talker.q = []; talker.busy = false; talker.open = false; talker.after = null;
+  try{ speechSynthesis.cancel(); }catch(e){}
+  speaking = false; lipQueue = [];
+  if(!thinking) statusEl.textContent = 'Online';
+}
+const noteEl = document.getElementById('note');
+function note(msg){ noteEl.textContent = msg; noteEl.style.display = msg ? 'block' : 'none'; }
+function showVoiceProblem(){ note('No sound? Turn off silent mode and turn the volume up, then tap ▶ PLAY.'); }
+voiceBtn.onclick = ()=>{
+  voiceOn = !voiceOn;
+  voiceBtn.textContent = voiceOn ? '🔊' : '🔇';
+  voiceBtn.classList.toggle('off', !voiceOn);
+  if(!voiceOn) stopTalking();
+  else speak('Voice systems online.');   // a direct tap, so the phone allows sound
+};
+// After 2 seconds, check whether this app has any voices at all
+setTimeout(()=>{ if(!voiceAvailable()) showVoiceProblem(); }, 2000);
+
+/* ---------- Settings (saved on this phone with localStorage) ---------- */
+
+const settingsEl = document.getElementById('settings');
+const keyIn = document.getElementById('keyIn'), modelIn = document.getElementById('modelIn'), nameIn = document.getElementById('nameIn');
+const cityIn = document.getElementById('cityIn'), voiceIn = document.getElementById('voiceIn');
+const rateIn = document.getElementById('rateIn'), pitchIn = document.getElementById('pitchIn');
+function fillVoices(){
+  const vs = englishVoices();
+  voiceIn.innerHTML = '';
+  for(const v of vs){
+    const o = document.createElement('option');
+    o.value = v.name; o.textContent = v.name + ' (' + v.lang + ')';
+    voiceIn.appendChild(o);
+  }
+  if(voice) voiceIn.value = voice.name;
+}
+function showVals(){ document.getElementById('rateVal').textContent = '× ' + rateIn.value; document.getElementById('pitchVal').textContent = '× ' + pitchIn.value; }
+rateIn.oninput = pitchIn.oninput = showVals;
+function applyVoiceSettings(){
+  store.set('gideonVoice', voiceIn.value || '');
+  store.set('gideonRate', rateIn.value); store.set('gideonPitch', pitchIn.value);
+  pickVoice();
+}
+document.getElementById('testVoice').onclick = ()=>{ applyVoiceSettings(); speak('Hello. This is how I sound now.'); };
+function openSettings(){
+  keyIn.value = store.get('gideonKey','');
+  modelIn.value = store.get('gideonModel','gemini-3.8-flash');
+  nameIn.value = store.get('gideonName','Liam');
+  cityIn.value = store.get('gideonCity','');
+  document.getElementById('convoIn').value = store.get('gideonConvo','1');
+  rateIn.value = store.get('gideonRate','0.98'); pitchIn.value = store.get('gideonPitch','1.05'); showVals();
+  fillVoices(); fillMemory(); fillNotes();
+  settingsEl.classList.add('show');
+}
+document.getElementById('gear').onclick = openSettings;
+document.getElementById('saveSet').onclick = ()=>{
+  store.set('gideonKey', keyIn.value.trim());
+  store.set('gideonModel', (modelIn.value.trim() || 'gemini-3.8-flash').toLowerCase().replace(/\s+/g,''));
+  store.set('gideonName', nameIn.value.trim() || 'Liam');
+  store.set('gideonCity', cityIn.value.trim());
+  store.set('gideonConvo', document.getElementById('convoIn').value);
+  applyVoiceSettings();
+  settingsEl.classList.remove('show');
+  speak('Configuration saved. All systems online.');
+};
+
+/* ---------- Boot: one tap unlocks sound on iPhone ---------- */
+/* ---------- Boot sequence ----------
+   One tap: we unlock sound (iPhone rule), play a power-up sound,
+   type out system checks, fade the hologram in, then say hello. */
+function powerUpSound(){
+  if(!actx) return;
+  try{
+    const t0 = actx.currentTime, o = actx.createOscillator(), f = actx.createBiquadFilter(), g = actx.createGain();
+    o.type = 'sawtooth'; o.frequency.setValueAtTime(55, t0); o.frequency.exponentialRampToValueAtTime(440, t0+1.6);
+    f.type = 'lowpass'; f.frequency.setValueAtTime(200, t0); f.frequency.exponentialRampToValueAtTime(2400, t0+1.6);
+    g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.12, t0+0.3); g.gain.exponentialRampToValueAtTime(0.0001, t0+1.9);
+    o.connect(f); f.connect(g); g.connect(actx.destination); o.start(t0); o.stop(t0+2);
+    [[880,1.75],[1318,1.9]].forEach(([hz,d])=>{                  // two bright "online" pings
+      const p = actx.createOscillator(), pg = actx.createGain();
+      p.type = 'sine'; p.frequency.value = hz;
+      pg.gain.setValueAtTime(0.0001, t0+d); pg.gain.exponentialRampToValueAtTime(0.25, t0+d+0.02); pg.gain.exponentialRampToValueAtTime(0.0001, t0+d+0.6);
+      p.connect(pg); pg.connect(actx.destination); p.start(t0+d); p.stop(t0+d+0.65);
+    });
+  }catch(e){}
+}
+document.getElementById('boot').onclick = (e)=>{
+  const boot = e.currentTarget;
+  if(boot.classList.contains('run')) return;
+  boot.classList.add('run');
+  unlockAudio(); powerUpSound();
+  try{ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }catch(err){}   // unlock speech during the tap
+  const hasKey = !!store.get('gideonKey','');
+  const lines = [
+    ['NEURAL CORE', 'ONLINE', 'ok'],
+    ['HOLO-PROJECTOR', head3D ? 'ONLINE' : 'LIMITED', head3D ? 'ok' : 'warn'],
+    ['VOICE SYNTHESIS', 'speechSynthesis' in window ? 'ONLINE' : 'OFFLINE', 'speechSynthesis' in window ? 'ok' : 'warn'],
+    ['AUDIO SENSORS', SR ? 'READY' : 'UNAVAILABLE', SR ? 'ok' : 'warn'],
+    ['GEMINI UPLINK', hasKey ? 'LINKED' : 'NO KEY', hasKey ? 'ok' : 'warn'],
+    ['MEMORY BANKS', memory.length + ' FACTS', 'ok'],
+  ];
+  const logEl = document.getElementById('bootLog');
+  lines.forEach(([a,b,c], k)=> setTimeout(()=>{
+    const row = document.createElement('div');
+    row.innerHTML = '<span></span><span class="' + c + '"></span>';
+    row.firstChild.textContent = a;
+    row.lastChild.textContent = b;
+    logEl.appendChild(row);
+  }, 120 + k*270));
+  requestAnimationFrame(()=> document.querySelector('#bootBar i').style.width = '100%');
+  setTimeout(()=> document.body.classList.remove('cold'), 700);      // hologram fades in
+  setTimeout(()=>{
+    boot.classList.add('out');
+    setTimeout(()=> boot.remove(), 650);
+    booted = true;
+    const name = store.get('gideonName','Liam');
+    const hour = new Date().getHours();
+    const part = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening';
+    const hello = restored ? `Welcome back, ${name}. Shall we continue?` : `Good ${part}, ${name}. All systems are online. How may I assist you?`;
+    addMsg('ai', hello);
+    speak(hello);
+    lookAt(0, 0, 1500);
+    if(!hasKey) setTimeout(openSettings, 600);
+  }, 2100);
+};
+// The Siri guide link points at whichever GitHub account hosts this copy of Gideon
+try{
+  if(location.hostname.endsWith('.github.io')){
+    const owner = location.hostname.split('.')[0], repo = location.pathname.split('/')[1] || 'Gideon';
+    document.getElementById('siriLink').href = `https://github.com/${owner}/${repo}/blob/main/SIRI-SHORTCUT.md`;
+  }
+}catch(e){}
+
+/* ---------- Listening (speech-to-text built into Safari) ----------
+   Two modes:
+   - "query": listen to one question, send it when you pause.
+   - "wake":  listen all the time; when it hears "Gideon", it wakes up.
+   Gideon stops listening while it talks, so it doesn't hear itself. */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+const micBtn = document.getElementById('micBtn'), wakeBtn = document.getElementById('wakeBtn');
+let rec = null, recMode = null, wakeOn = false, pauseTimer = null;
+const heardEl = document.getElementById('heard');
+// How different two words are (number of letter changes needed)
+function editDist(a, b){
+  const d = Array.from({length:a.length+1}, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for(let j=1;j<=b.length;j++) d[0][j] = j;
+  for(let i=1;i<=a.length;i++) for(let j=1;j<=b.length;j++)
+    d[i][j] = Math.min(d[i-1][j]+1, d[i][j-1]+1, d[i-1][j-1] + (a[i-1]===b[j-1]?0:1));
+  return d[a.length][b.length];
+}
+// Find "Gideon" even when the phone mishears it (gidion, gideons, giddy on, kidian...)
+function findWake(text){
+  const words = text.toLowerCase().replace(/[^a-z' ]/g,' ').split(/\s+/).filter(Boolean);
+  for(let i=0;i<words.length;i++){
+    const w = words[i].replace(/'s$/,'');
+    const two = i+1 < words.length ? w + words[i+1] : '';
+    if(w.length >= 4 && editDist(w, 'gideon') <= ('gjk'.includes(w[0]) ? 2 : 1)) return {rest: words.slice(i+1).join(' ')};
+    if(two && two.length <= 8 && 'gjk'.includes(two[0]) && editDist(two, 'gideon') <= 2) return {rest: words.slice(i+2).join(' ')};
+  }
+  return null;
+}
+
+/* ---------- Conversation mode ----------
+   Once you've talked to Gideon, it keeps listening after each answer,
+   so you can just keep talking without saying "Gideon" again.
+   The conversation ends when:
+   - you say something like "that's all", "thanks, bye", "never mind"
+   - you stay quiet for about 8 seconds
+   - Gemini decides you weren't talking to it (it replies [IGNORE])
+   Then it goes back to waiting for the wake word. */
+const FOLLOW_MS = 8000;
+let convo = false, listenFollow = false, listenStart = 0, curHeard = '';
+const convoSetting = ()=> store.get('gideonConvo','1') === '1';
+const DISMISS = /^((ok|okay|alright|all right|thanks|thank you|cool|great|perfect|no)\s*)*(that's all|thats all|that's it|that is all|that will be all|that'll be all|goodbye|good bye|bye|bye bye|good night|goodnight|see you|see ya|later|never mind|nevermind|stop listening|dismissed|you're dismissed|go to sleep|i'm done|im done|i'm good|we're done|no thanks|no thank you|nothing|stop)( gideon)?( thanks| thank you)?$/;
+function norm(text){ return text.toLowerCase().replace(/[^a-z' ]/g,' ').replace(/\s+/g,' ').trim().replace(/^(hey |ok |okay )?gideon /,''); }
+function pick(list){ return list[Math.floor(Math.random()*list.length)]; }
+
+function startConvo(){ if(convoSetting()){ convo = true; keepAwake(true); } }
+function endConvo(sayIt){
+  convo = false; listenFollow = false;
+  stopRec(); heardEl.textContent = '';
+  keepAwake(wakeOn);
+  if(sayIt) speak(pick(['Very well. Standing by.', "Of course. I'll be here.", 'Understood. Standing by.']), resumeWake);
+  else { if(!speaking && !thinking) statusEl.textContent = 'Online'; resumeWake(); }
+}
+// Called when Gideon finishes speaking a reply
+function afterReply(){ if(convo){ listenFollow = true; listen(); } else resumeWake(); }
+// Listen for one thing you say (a question, or a follow-up)
+function listen(){ listenStart = Date.now(); startRec('query'); }
+// Something was heard in "query" mode: dismiss, or send it to Gemini
+function handleHeard(text, follow){
+  if(DISMISS.test(norm(text))){ input.value = ''; endConvo(true); return; }
+  if(follow && findWake(text)) follow = false;          // they said my name, so it's definitely for me
+  sendText(text, {voice:true, follow});
+}
+function onHeadTap(){
+  unlockAudio();
+  if(thinking){ cancelThinking(); return; }             // stop waiting for Gemini
+  if(!speaking) return;
+  stopTalking();                                        // interrupted: listen for what they say instead
+  if(convo || recMode === null){ listenFollow = false; listen(); }
+}
+
+/* Keep the screen on while Gideon is listening (iOS 16.4+).
+   If the screen locks, Safari stops the microphone. */
+let wakeLock = null;
+async function keepAwake(on){
+  try{
+    if(on && !wakeLock && navigator.wakeLock && !document.hidden){
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', ()=>{ wakeLock = null; });
+    } else if(!on && wakeLock){ const w = wakeLock; wakeLock = null; await w.release(); }
+  }catch(e){}
+}
+
+function stopRec(){
+  clearTimeout(pauseTimer);
+  if(rec){ const r = rec; rec = null; r.onend = null; try{ r.abort(); }catch(e){} }
+  recMode = null;
+  micBtn.classList.remove('live');
+}
+function resumeWake(){ if(wakeOn && !thinking && !speaking && !convo) startRec('wake'); }
+// Safari sometimes stops listening without telling us. Every 3 seconds, check and restart.
+let lastStart = 0;
+setInterval(()=>{ if(wakeOn && !rec && !thinking && !speaking && !convo && !document.hidden) resumeWake(); }, 3000);
+// Safari also likes to stop after ~a minute of listening; restart before that happens
+setInterval(()=>{ if(wakeOn && recMode === 'wake' && Date.now() - lastStart > 50000 && !thinking && !speaking){ startRec('wake'); } }, 5000);
+// If a follow-up listen hangs with nothing heard, give up and go back to standby
+setInterval(()=>{ if(recMode === 'query' && !curHeard && Date.now() - listenStart > FOLLOW_MS + 3000){ convo ? endConvo(false) : (stopRec(), statusEl.textContent = 'Online', resumeWake()); } }, 1000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ keepAwake(wakeOn || convo); setTimeout(resumeWake, 500); } });
+
+function startRec(mode){
+  if(!SR){ note('Voice input needs Safari. Open Gideon in Safari (not inside another app).'); return; }
+  stopRec();
+  recMode = mode;
+  const r = new SR(); rec = r;
+  r.lang = 'en-US'; r.interimResults = true; r.continuous = (mode === 'wake');
+  let finals = '', heard = '';
+  curHeard = '';
+  if(mode === 'query'){
+    micBtn.classList.add('live'); statusEl.textContent = 'Listening'; input.value = '';
+    heardEl.textContent = convo ? 'Listening… say “that’s all” when you’re done' : '';
+  }
+  else statusEl.textContent = 'Standing by';
+  r.onresult = (ev)=>{
+    let interim = '';
+    for(let i = ev.resultIndex; i < ev.results.length; i++){
+      const res = ev.results[i];
+      if(res.isFinal) finals += res[0].transcript + ' '; else interim += res[0].transcript;
+    }
+    heard = (finals + interim).trim(); curHeard = heard;
+    clearTimeout(pauseTimer);
+    if(mode === 'query'){
+      input.value = heard;
+      const follow = listenFollow;
+      pauseTimer = setTimeout(()=>{ stopRec(); if(heard) handleHeard(heard, follow); }, 1400);   // you paused: send it
+    } else {
+      heardEl.textContent = 'Heard: ' + heard.slice(-60);
+      const m = findWake(heard);
+      if(!m) return;
+      pauseTimer = setTimeout(()=>{
+        const after = (findWake(heard) || m).rest.trim();
+        stopRec();
+        if(after.split(' ').length >= 2) handleHeard(after, false);          // "Gideon, what's the time?"
+        else speak('Yes?', ()=>{ startConvo(); listenFollow = false; listen(); });   // just "Gideon"
+      }, 1200);
+    }
+  };
+  r.onerror = (ev)=>{
+    if(ev.error === 'not-allowed' || ev.error === 'service-not-allowed'){
+      wakeOn = false; convo = false; wakeBtn.classList.add('off'); wakeBtn.classList.remove('live');
+      note('Microphone blocked. In iPhone Settings > Safari > Microphone, choose Allow, then reload.');
+    }
+  };
+  r.onend = ()=>{
+    if(rec !== r) return;
+    rec = null; micBtn.classList.remove('live');
+    if(mode === 'query'){
+      clearTimeout(pauseTimer);
+      if(heard && !thinking){ handleHeard(heard, listenFollow); return; }
+      // heard nothing: Safari stops on silence, so keep trying until the follow-up window runs out
+      if(Date.now() - listenStart < FOLLOW_MS && !thinking && !speaking){ setTimeout(()=>{ if(!rec && !speaking && !thinking) startRec('query'); }, 120); return; }
+      if(convo) endConvo(false); else { statusEl.textContent = 'Online'; heardEl.textContent = ''; resumeWake(); }
+    }
+    else if(wakeOn) setTimeout(resumeWake, 150);                            // keep listening
+  };
+  try{ r.start(); lastStart = Date.now(); }
+  catch(e){ rec = null; if(mode === 'wake') statusEl.textContent = 'Mic paused, tap 👂'; else note('Could not start the microphone. Tap 🎙️ to try again.'); }
+}
+
+micBtn.onclick = ()=>{
+  unlockAudio();
+  if(thinking){ cancelThinking(); return; }             // stop waiting for Gemini
+  if(recMode === 'query'){ endConvo(false); return; }   // tap again to stop listening
+  stopTalking();
+  listenFollow = false; listen();
+};
+wakeBtn.onclick = ()=>{
+  wakeOn = !wakeOn;
+  wakeBtn.classList.toggle('off', !wakeOn); wakeBtn.classList.toggle('live', wakeOn);
+  keepAwake(wakeOn || convo);
+  if(wakeOn){ note(''); speak('Wake word active. Say Gideon when you need me.', ()=> startRec('wake')); }
+  else { stopRec(); convo = false; statusEl.textContent = 'Online'; heardEl.textContent = ''; }
+};
+
+/* ---------- Memory (remembered between visits) ----------
+   Gideon adds [REMEMBER: ...] to a reply when you tell it something
+   worth keeping. We save those facts on this phone and send them
+   along with every question, so Gideon "remembers" next time. */
+let memory = [];
+try{ memory = JSON.parse(store.get('gideonMemory','[]')) || []; }catch(e){ memory = []; }
+function saveMemory(){ store.set('gideonMemory', JSON.stringify(memory)); fillMemory(); }
+function remember(fact){
+  fact = fact.replace(/\s+/g,' ').trim().slice(0,160);
+  if(!fact || memory.some(m => m.toLowerCase() === fact.toLowerCase())) return;
+  memory.push(fact);
+  if(memory.length > 40) memory.shift();          // keep the newest 40
+  saveMemory();
+}
+function fillMemory(){
+  const el = document.getElementById('memList');
+  el.textContent = memory.length ? memory.map(m => '• ' + m).join('\n') : 'Nothing yet. Tell Gideon things like "my birthday is March 3rd".';
+}
+document.getElementById('forgetBtn').onclick = ()=>{ memory = []; saveMemory(); speak('Memory banks cleared.'); };
+
+/* ---------- Notes & to-do list ----------
+   Gideon adds [NOTE: buy milk] to save an item, [DONE: 2] or
+   [DONE: milk] to tick one off, [CLEARNOTES] to empty the list. */
+let notes = [];
+try{ notes = JSON.parse(store.get('gideonNotes','[]')) || []; }catch(e){ notes = []; }
+function saveNotes(){ store.set('gideonNotes', JSON.stringify(notes)); fillNotes(); }
+function addNote(text){ text = text.replace(/\s+/g,' ').trim().slice(0,140); if(text && !notes.some(n => n.toLowerCase() === text.toLowerCase())){ notes.push(text); if(notes.length > 50) notes.shift(); saveNotes(); } }
+function doneNote(what){
+  what = what.trim().toLowerCase();
+  const num = parseInt(what, 10);
+  if(num >= 1 && num <= notes.length && /^\d+$/.test(what)) notes.splice(num-1, 1);
+  else { const k = notes.findIndex(n => n.toLowerCase().includes(what) || what.includes(n.toLowerCase())); if(k >= 0) notes.splice(k, 1); }
+  saveNotes();
+}
+function fillNotes(){
+  const el = document.getElementById('notesList');
+  el.textContent = notes.length ? notes.map((n,k) => (k+1) + '. ' + n).join('\n') : 'Empty. Try “Gideon, remind me to finish my essay” or “add eggs to my list”.';
+}
+document.getElementById('clearNotes').onclick = ()=>{ notes = []; saveNotes(); speak('List cleared.'); };
+
+/* ---------- Timers and reminders ----------
+   Gideon adds [TIMER: 300 | pizza] to a reply. We save the END time
+   (not "seconds left"), so a timer survives reloading the page.
+   Every second we check for timers that are due and ring them. */
+let timers = [], booted = false, actx = null;
+try{ timers = JSON.parse(store.get('gideonTimers','[]')) || []; }catch(e){ timers = []; }
+const timersEl = document.getElementById('timers');
+function saveTimers(){ store.set('gideonTimers', JSON.stringify(timers)); renderTimers(); }
+function addTimer(sec, label){ timers.push({id: Date.now() + Math.random(), end: Date.now() + sec*1000, label}); saveTimers(); }
+function fmtLeft(ms){
+  const s = Math.max(0, Math.ceil(ms/1000)), h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = String(s%60).padStart(2,'0');
+  return h ? `${h}:${String(m).padStart(2,'0')}:${x}` : `${m}:${x}`;
+}
+function renderTimers(){
+  const now = Date.now();
+  if(timersEl.children.length !== timers.length){            // rebuild the buttons only when the list changes
+    timersEl.innerHTML = '';
+    for(const tm of timers){
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'timer'; b.title = 'Tap to cancel';
+      b.onclick = ()=>{ timers = timers.filter(x => x.id !== tm.id); saveTimers(); };
+      timersEl.appendChild(b);
+    }
+  }
+  timers.forEach((tm, i)=>{ timersEl.children[i].textContent = '⏱ ' + tm.label + ' ' + fmtLeft(tm.end - now) + ' ✕'; });
+}
+// iPhone only allows sound after a tap, so we create the sound engine on the first tap
+function unlockAudio(){
+  try{ actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if(actx.state === 'suspended') actx.resume(); }catch(e){}
+}
+function chime(){                                     // three soft beeps, made from sine waves
+  if(!actx) return;
+  try{
+    const t0 = actx.currentTime;
+    [0, 0.32, 0.64].forEach((d, i)=>{
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = 'sine'; o.frequency.value = i === 2 ? 1175 : 880;
+      g.gain.setValueAtTime(0.0001, t0+d);
+      g.gain.exponentialRampToValueAtTime(0.35, t0+d+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0+d+0.28);
+      o.connect(g); g.connect(actx.destination); o.start(t0+d); o.stop(t0+d+0.3);
+    });
+  }catch(e){}
+}
+function ringTimers(due){
+  const late = due.some(d => Date.now() - d.end > 60000);
+  const names = due.map(d => d.label).join(' and ');
+  const msg = late ? `While I was offline, your ${names} finished.` : `${store.get('gideonName','Liam')}, your ${names} is complete.`;
+  setMood('alert', 6000);
+  stopRec(); chime();
+  addMsg('ai', msg);
+  setTimeout(()=> speak(msg, resumeWake), 1100);
+}
+setInterval(()=>{
+  if(!timers.length) return;
+  const now = Date.now(), due = timers.filter(x => x.end <= now);
+  // wait until Gideon is switched on and not mid-sentence, so we don't talk over it
+  if(due.length && booted && !speaking && !thinking){ timers = timers.filter(x => x.end > now); saveTimers(); ringTimers(due); }
+  else renderTimers();
+}, 1000);
+renderTimers();
+
+/* Gideon's hidden [TAGS]. stripTags() just hides them (used while the
+   answer is still streaming in). applyActions() acts on them once the
+   whole answer has arrived, and returns the text to show and speak. */
+const TAG_RE = /\[\s*(TIMER|REMEMBER|FORGET|CANCEL|MOOD|END|IGNORE|NOTE|DONE|CLEARNOTES)\b\s*:?\s*([^\]]*)\]/gi;
+let lastFlags = {end:false, ignore:false};
+function stripTags(raw){
+  return raw.replace(TAG_RE, '').replace(/\[[^\]]*$/, '')      // also hide a tag that's only half arrived
+            .replace(/[ \t]{2,}/g, ' ').trim();
+}
+function applyActions(raw){
+  lastFlags = {end:false, ignore:false};
+  raw.replace(TAG_RE, (all, kind, arg)=>{
+    kind = kind.toUpperCase(); arg = (arg || '').trim();
+    if(kind === 'TIMER'){
+      const [secs, ...rest] = arg.split('|'); const sec = parseFloat(secs);
+      if(sec > 0 && sec <= 7*86400) addTimer(sec, rest.join('|').trim() || 'timer');
+    }
+    else if(kind === 'CANCEL'){ timers = []; saveTimers(); }
+    else if(kind === 'REMEMBER'){ if(arg) remember(arg); }
+    else if(kind === 'FORGET'){ memory = []; saveMemory(); }
+    else if(kind === 'MOOD'){ setMood(arg.toLowerCase(), 8000 + raw.length*60); }
+    else if(kind === 'END') lastFlags.end = true;
+    else if(kind === 'IGNORE') lastFlags.ignore = true;
+    else if(kind === 'NOTE'){ if(arg) addNote(arg); }
+    else if(kind === 'DONE'){ if(arg) doneNote(arg); }
+    else if(kind === 'CLEARNOTES'){ notes = []; saveNotes(); }
+    return '';
+  });
+  return stripTags(raw);
+}
+
+/* Instant answers that don't need the internet (and don't use up free quota) */
+function localAnswer(text){
+  const n = norm(text).replace(/ gideon$/,'').replace(/^(hey |ok |okay )?gideon /,'');
+  if(/^(what's the time|what is the time|what time is it|the time|time|what's the time now|what time is it now|what time is it right now)$/.test(n))
+    return 'It is ' + new Date().toLocaleTimeString([], {hour:'numeric', minute:'2-digit'}) + '.';
+  if(/^(what's the date|what is the date|what's today's date|what is today's date|what day is it|what day is today|what's the date today|what is the date today|what's today|what is today)$/.test(n))
+    return 'Today is ' + new Date().toLocaleDateString([], {weekday:'long', month:'long', day:'numeric', year:'numeric'}) + '.';
+  return null;
+}
+
+/* ---------- Chat ---------- */
+function addMsg(who, text){
+  const d = document.createElement('div');
+  d.className = 'msg ' + who;
+  if(who==='ai'){
+    d.innerHTML = '<span class="who">GIDEON <button class="play" type="button">▶ PLAY</button></span><span class="body"></span>';
+    d.querySelector('.body').textContent = text;
+    d.querySelector('.play').onclick = ()=> speak(d.querySelector('.body').textContent, resumeWake);
+  }
+  else d.textContent = text;
+  log.appendChild(d); log.scrollTop = log.scrollHeight;
+  return d;
+}
+
+/* ---------- The brain: Google Gemini ----------
+   We send Gideon's personality + the conversation as JSON,
+   and Gemini sends back JSON with the answer inside. */
+// Free models to try, in order, if the chosen one isn't available on this key
+const FALLBACK_MODELS = ['gemini-3.8-flash','gemini-3.7-flash','gemini-3.6-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-2.5-flash','gemini-2.5-flash-lite'];
+let searchOK = true;    // turns off automatically if web search isn't free for this key
+
+const FOLLOW_NOTE = '\nThis latest message was picked up by an open microphone during a follow-up, without your name being said. If it is clearly not meant for you (they are talking to someone else, a TV, background chatter, or it is meaningless), reply with only [IGNORE] and nothing else.';
+const cleanMd = s => s.replace(/[*#_`]/g, '').trim();
+
+/* We use the *streaming* version of the API: Gemini sends the answer in
+   small pieces as it writes it, and onText() is called with the text so
+   far each time. That way Gideon can start talking much sooner. */
+async function callGemini(model, useSearch, quick = true, onText = null, extra = ''){
+  const sys = SYSTEM.replace('{NAME}', store.get('gideonName','Liam')).replace('{CITY}', store.get('gideonCity','') || 'an unknown city (ask them which city if it matters)')
+    + '\nCurrent date and time: ' + new Date().toString() + '.'
+    + (memory.length ? '\nThings you remember about them from earlier conversations: ' + memory.join('; ') + '.' : '')
+    + (notes.length ? '\nTheir notes / to-do list: ' + notes.map((n,k) => (k+1) + ') ' + n).join('; ') + '.' : '\nTheir notes / to-do list is empty.')
+    + (timers.length ? '\nTimers running now: ' + timers.map(x => x.label + ' (' + fmtLeft(x.end - Date.now()) + ' left)').join(', ') + '.' : '\nNo timers are running.')
+    + extra;
+  const body = {
+    system_instruction: { parts: [{ text: sys }] },
+    contents: history.slice(-20).map(m => ({ role: m.role === 'assistant' ? 'model' : 'user', parts: [{ text: m.content }] }))
+  };
+  if(useSearch) body.tools = [{ google_search: {} }];              // lets Gemini look things up
+  // Gemini 3 models "think" before answering; ask for a short think so replies come fast
+  if(quick && model.startsWith('gemini-3')) body.generationConfig = { thinkingConfig: { thinkingLevel: 'low' } };
+  // give up if nothing arrives for 25 seconds, instead of hanging forever
+  const ctl = new AbortController(); let timer = setTimeout(()=> ctl.abort(), 15000);
+  liveCtl = ctl;                                                   // so a tap on the head can cancel it
+  const poke = ()=>{ clearTimeout(timer); timer = setTimeout(()=> ctl.abort(), 20000); };
+  const fail = (e)=>{
+    clearTimeout(timer);
+    if(askCancelled){ const c = new Error('Cancelled'); c.status = 499; return c; }
+    const err = new Error(e.name === 'AbortError' ? 'Timed out waiting for ' + model : 'Failed to fetch'); err.status = e.name === 'AbortError' ? 408 : 0; return err;
+  };
+  let res;
+  try{
+    res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:streamGenerateContent?alt=sse`, {
+      method: 'POST', signal: ctl.signal,
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': store.get('gideonKey','').trim() },
+      body: JSON.stringify(body)
+    });
+  }catch(e){ throw fail(e); }
+  if(!res.ok){
+    clearTimeout(timer);
+    let data = await res.json().catch(()=> ({}));
+    if(Array.isArray(data)) data = data[0] || {};
+    // if this model doesn't understand the "think less" setting, try once without it
+    if(quick && body.generationConfig && res.status === 400 && /think/i.test(data?.error?.message || '')) return callGemini(model, useSearch, false, onText, extra);
+    const err = new Error(data?.error?.message || ('HTTP ' + res.status)); err.status = res.status; throw err;
+  }
+  // Read the stream. Each piece is a line like:  data: {"candidates":[...]}
+  let raw = '', buf = '';
+  const eat = (chunk)=>{
+    buf += chunk;
+    let k;
+    while((k = buf.indexOf('\n')) >= 0){
+      const line = buf.slice(0, k).trim(); buf = buf.slice(k+1);
+      if(!line.startsWith('data:')) continue;
+      try{
+        const d = JSON.parse(line.slice(5));
+        for(const p of d?.candidates?.[0]?.content?.parts || []) if(p.text && !p.thought) raw += p.text;
+      }catch(e){}
+    }
+    if(onText && raw) onText(cleanMd(raw));
+  };
+  try{
+    if(res.body && res.body.getReader){
+      const rd = res.body.getReader(), dec = new TextDecoder();
+      for(;;){ const {done, value} = await rd.read(); if(done) break; poke(); eat(dec.decode(value, {stream:true})); }
+    } else eat(await res.text());
+    eat('\n');
+  }catch(e){ if(!raw) throw fail(e); }                 // lost the connection halfway: keep what we got
+  clearTimeout(timer);
+  return cleanMd(raw);
+}
+
+/* Which Gemini models can this key use? We ask Google once a day
+   (a free request that doesn't use up quota) instead of guessing names,
+   so Gideon never wastes time on models that don't exist. */
+async function availableModels(){
+  try{ const c = JSON.parse(store.get('gideonModels','null')); if(c && Date.now() - c.at < 86400000 && c.list.length) return c.list; }catch(e){}
+  try{
+    const ctl = new AbortController(); setTimeout(()=> ctl.abort(), 6000);
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers:{ 'x-goog-api-key': store.get('gideonKey','').trim() }, signal: ctl.signal });
+    if(!r.ok) return [];
+    const d = await r.json();
+    const ver = n => parseFloat(n.slice(7)) || 0;                 // "gemini-3.8-flash" -> 3.8
+    const list = (d.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => m.name.replace(/^models\//, ''))
+      .filter(n => /^gemini-[\d.]+-flash(-lite)?(-preview(-[\d-]+)?)?$/.test(n))   // plain Flash chat models only
+      .sort((a,b) => ver(b) - ver(a) || a.length - b.length);      // newest first, non-preview before preview
+    store.set('gideonModels', JSON.stringify({at: Date.now(), list}));
+    return list;
+  }catch(e){ return []; }
+}
+
+/* Models that just said "quota used up" are rested for a while, so we
+   don't keep knocking on the same door (each knock costs time). */
+let tired = {};
+try{ tired = JSON.parse(store.get('gideonTired','{}')) || {}; }catch(e){ tired = {}; }
+function restModel(model, err){
+  const m = String(err.message).match(/retry in ([\d.]+)\s*s/i);
+  const secs = m ? Math.min(600, parseFloat(m[1]) + 2) : (/per ?day|daily|PerDay/i.test(err.message) ? 3600 : 120);
+  tired[model] = Date.now() + secs*1000;
+  store.set('gideonTired', JSON.stringify(tired));
+}
+
+let askCancelled = false, liveCtl = null;
+function cancelThinking(){ askCancelled = true; try{ liveCtl && liveCtl.abort(); }catch(e){} }
+
+async function askGemini(onText, extra){
+  askCancelled = false;
+  const chosen = store.get('gideonModel','gemini-3.8-flash');
+  const found = await availableModels();
+  const all = [...new Set([chosen, ...found, ...FALLBACK_MODELS])]
+    .filter(m => !found.length || found.includes(m) || m === chosen)        // skip names Google says don't exist
+    .filter(m => !(tired[m] > Date.now()));                                  // skip models resting after a quota error
+  const MAX_TRIES = 5, deadline = Date.now() + 40000;                       // never "process" forever
+  let lastErr = null, tries = 0;
+  if(!all.length){
+    const longest = Math.max(0, ...Object.values(tired)) - Date.now();
+    const e = new Error(longest > 30*60000 ? 'Daily free quota used up on every model.' : 'All models are resting after quota errors. Try again in a few minutes.');
+    e.status = 429; throw e;
+  }
+  for(const model of all){
+    let useSearch = searchOK;
+    while(tries < MAX_TRIES && Date.now() < deadline){
+      if(askCancelled){ const c = new Error('Cancelled'); c.status = 499; throw c; }
+      tries++;
+      try{
+        statusEl.textContent = 'Processing';
+        const text = await callGemini(model, useSearch, true, onText, extra);
+        if(!useSearch && searchOK) searchOK = false;                   // search was the problem: leave it off
+        if(model !== chosen) store.set('gideonModel', model);          // remember the one that worked
+        note('');
+        return text;
+      }catch(err){
+        lastErr = err;
+        if(err.status === 499) throw err;                                         // you cancelled
+        if(err.status === 400 && /api key/i.test(err.message)) throw err;         // bad key: no point retrying
+        if(err.status === 401 || (err.status === 403 && /key/i.test(err.message))) throw err;
+        if(err.status === 0) throw err;                                            // no internet
+        note('Trying another option… (' + model + ': ' + String(err.message).slice(0,80) + ')');
+        if(useSearch && (err.status === 429 || err.status === 400 || err.status === 403)){ useSearch = false; continue; }  // retry once without web search
+        if(err.status === 429) restModel(model, err);
+        break;                                                                     // next model
+      }
+    }
+    if(tries >= MAX_TRIES || Date.now() >= deadline) break;
+  }
+  throw lastErr || new Error('No models available');
+}
+
+/* Recent chat is saved for 30 minutes, so reloading the page
+   (or reopening the app) doesn't make Gideon forget the conversation. */
+function saveChat(){ store.set('gideonChat', JSON.stringify({at: Date.now(), history: history.slice(-20)})); }
+let restored = false;
+try{
+  const c = JSON.parse(store.get('gideonChat','null'));
+  if(c && Date.now() - c.at < 30*60*1000 && Array.isArray(c.history) && c.history.length){
+    history = c.history; restored = true;
+    for(const m of history) addMsg(m.role === 'assistant' ? 'ai' : 'you', m.content);
+  }
+}catch(e){}
+document.getElementById('clearChat').onclick = ()=>{ history = []; saveChat(); log.innerHTML = ''; settingsEl.classList.remove('show'); speak('Conversation cleared.'); };
+
+// opts.voice: it came from the microphone. opts.follow: heard during a follow-up, without "Gideon"
+async function sendText(text, opts = {}){
+  text = (text || '').trim();
+  if(!text || thinking) return;
+  const quick = localAnswer(text);
+  if(!quick && !store.get('gideonKey','')){ openSettings(); return; }
+  stopRec();
+  input.value = ''; heardEl.textContent = '';
+  if(opts.voice) startConvo();
+  const youEl = addMsg('you', text);
+  if(quick){                                              // answered on the phone, no internet needed
+    addMsg('ai', quick);
+    history.push({role:'user', content:text}, {role:'assistant', content:quick}); saveChat();
+    speak(quick, afterReply);
+    return;
+  }
+  history.push({role:'user', content:text});
+  thinking = true; sendBtn.disabled = true; statusEl.textContent = 'Processing';
+  const bubble = addMsg('ai', '…'), body = bubble.querySelector('.body');
+  let spokenTo = 0;                                       // how much of the answer has been sent to the voice
+  talkStart(afterReply);
+  const onText = (raw)=>{
+    const shown = stripTags(raw);
+    if(!shown) return;
+    body.textContent = shown; log.scrollTop = log.scrollHeight;
+    let m;                                                // speak each sentence as soon as it's complete
+    while((m = shown.slice(spokenTo).match(/^[\s\S]*?[.!?…]+["')\]]*\s+/))){ talkPush(m[0]); spokenTo += m[0].length; }
+  };
+  let reply;
+  try{
+    reply = applyActions(await askGemini(onText, opts.follow ? FOLLOW_NOTE : '') || '');
+    if(lastFlags.ignore && !reply){                      // not meant for Gideon: quietly go back to standby
+      history.pop(); saveChat();
+      bubble.remove(); youEl.classList.add('ignored');
+      thinking = false; sendBtn.disabled = false;
+      talker.after = null; talkEnd();
+      endConvo(false);
+      return;
+    }
+    if(!reply) reply = timers.length ? 'Done.' : lastFlags.end ? 'Very well.' : "I'm afraid I have nothing to report.";
+    history.push({role:'assistant', content:reply});
+  }catch(err){
+    history.pop(); spokenTo = 0; lastFlags = {end:true, ignore:false};
+    reply = "I'm experiencing a system malfunction. Please try again.";
+    if(err.status === 400 || err.status === 401 || err.status === 403) reply = "My access key appears to be invalid. Please check it in setup.";
+    if(err.status === 404) reply = "I can't find that Gemini model. Please check the model name in setup.";
+    if(err.status === 429) reply = /day|daily/i.test(err.message)
+      ? "I've used up today's free Gemini allowance. It resets tomorrow, so I'll be back to full power then."
+      : "I've reached my free usage limit for the moment. Please give me a minute and try again.";
+    if(err.status === 499) reply = 'Cancelled.';
+    if(err.status === 408) reply = "My servers are taking too long to respond. Please try again.";
+    if(err.message === 'Failed to fetch') reply = "I can't reach my servers. Please check your internet connection.";
+    console.warn(err);
+    setMood('alert', 5000);
+    note('Google says: ' + String(err.message || err).slice(0, 220));
+    talkStart(afterReply);                                // drop anything half-spoken, say the error instead
+  }
+  saveChat();
+  body.textContent = reply; log.scrollTop = log.scrollHeight;
+  thinking = false; sendBtn.disabled = false;
+  if(lastFlags.end){ convo = false; listenFollow = false; heardEl.textContent = ''; keepAwake(wakeOn); }   // they're done: back to wake word
+  talkPush(reply.slice(spokenTo)); talkEnd();
+}
+
+form.addEventListener('submit', (e)=>{
+  e.preventDefault();
+  unlockAudio();
+  try{ speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); }catch(err){}  // unlock sound on tap
+  sendText(input.value);
+});
+</script>
+</body>
+</html>
