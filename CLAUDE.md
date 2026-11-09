@@ -15,8 +15,7 @@ A personal AI voice assistant, inspired by the ship's-computer AI "Gideon" from 
 
 ## Hard constraints
 - **100% free.** Gemini API free tier only (key from aistudio.google.com, no credit card). No paid hosting.
-- **Hosting:** GitHub Pages from repo `liamxper42/Gideon`. The live URL is case-sensitive:
-  `https://liamxper42.github.io/Gideon/`
+- **Hosting:** GitHub Pages, repo named `Gideon`. The old account `liamxper42` was locked out (Nov 2026), so Liam is moving to a **new GitHub account**; the live URL will be `https://NEWNAME.github.io/Gideon/` (case-sensitive). The Siri-guide link in Setup works out the account name from the page URL, so nothing needs editing when the account changes.
 - **The API key must never be in the code.** The repo is public. The user pastes the key into the in-app ⚙︎ Setup, and it's stored in `localStorage` on the phone only.
 - **Runs in iPhone Safari** and as an "Add to Home Screen" web app.
 
@@ -28,6 +27,9 @@ A personal AI voice assistant, inspired by the ship's-computer AI "Gideon" from 
 | `README.md` | Auto-created by GitHub; harmless. |
 | `CLAUDE.md` | This file. |
 | `SIRI-SHORTCUT.md` | Step-by-step guide to build the "Gideon" Siri Shortcut (conversation loop) + iOS 18 Vocal Shortcuts trigger. Linked from Setup. |
+
+## Version
+**v2.4** (shown at the bottom of Setup). v2.4: iPhone speech fixes (boot says a real word inside the tap to unlock speech; `talkStart` only calls `cancel()` if something is playing, because cancel-then-speak makes iOS drop speech; utterance kept referenced in `talker.u`; `resume()` if paused; if speech never starts, `showVoiceProblem()` explains silent mode/volume). v2.3: fallback no longer overwrites your model choice on quota errors. v2.2: default model is Flash-Lite and web search only runs when `needsSearch()` matches. v2.1: quota-aware model fallback. v2.0: boot sequence, moving eyes, notes/to-do list, morning briefing, on top of v1.x (conversation mode, streaming speech, timers, memory, moods).
 
 ## How index.html is organised (top to bottom)
 1. **Meta tags:** Home Screen web-app tags (`apple-mobile-web-app-capable`, status bar, title, icon), `viewport-fit=cover`.
@@ -51,8 +53,9 @@ A personal AI voice assistant, inspired by the ship's-computer AI "Gideon" from 
    - Recognition stops while Gideon speaks or thinks. A watchdog restarts it every 3 s, it's force-restarted every ~50 s, and it resumes when the page becomes visible again.
 9. **Brain:** `callGemini(model, useSearch, quick, onText, extra)` POSTs to
    `https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse` (streaming: SSE `data:` lines parsed as they arrive; `onText` gets the text so far, and `sendText` speaks each finished sentence right away; idle timeout 20 s) with header `x-goog-api-key`. The body has `system_instruction`, plus `contents` (the last 20 turns, with roles user/model), optional `tools:[{google_search:{}}]`, and `thinkingConfig.thinkingLevel:'low'` for `gemini-3*` models. Each request is aborted after 25 s.
-   - `askGemini()` tries the chosen model, then `FALLBACK_MODELS`, each with and without search. It remembers the working model and turns off search (`searchOK=false`) if search fails. It stops immediately on a bad key or no internet. Errors show in `#note` as "Google says: …".
-10. **Settings:** the `store` helper wraps `localStorage` in try/catch. Keys: `gideonKey`, `gideonModel` (default `gemini-3.8-flash`), `gideonName` (default Liam), `gideonCity`, `gideonVoice`, `gideonRate`, `gideonPitch`, `gideonMemory` (JSON array of facts), `gideonTimers` (JSON array of `{id,end,label}`).
+   - `askGemini(onText, extra, wantSearch)`: `availableModels()` lists the key's real Flash models via `GET /v1beta/models` (cached a day in `gideonModels`, Lite first). It tries the chosen model, then the others, at most **5 attempts / 40 s**. Search is used only if `needsSearch(text)` (weather, news, scores, today…) and is dropped on a 429/400/403. Models that return 429 are rested in `gideonTired` until their limit resets (uses Google's "retry in Xs"; daily limits rest 1 h). It stops at once on a bad key, no internet, or `cancelThinking()` (tap head/mic while thinking). It remembers the working model. Errors show in `#note` as "Google says: …".
+   - **Free-tier reality (Oct–Nov 2026 reports, conflicting):** 3.8 Flash ≈ 20 requests/day, Flash-Lite ≈ 500/day, Pro has no free tier. That's why Lite is the default.
+10. **Settings:** the `store` helper wraps `localStorage` in try/catch. Keys: `gideonKey`, `gideonModel` (default `gemini-3.5-flash-lite`; a one-time `gideonV23` migration moves any non-Lite choice to Lite). A fallback model is only saved as the new choice if the chosen one 404s, never just because it was out of quota., `gideonName` (default Liam), `gideonCity`, `gideonVoice`, `gideonRate`, `gideonPitch`, `gideonMemory` (JSON array of facts), `gideonTimers` (JSON array of `{id,end,label}`).
 11. **Instant answers:** `localAnswer()` answers time/date questions on the phone with no API call.
 12. **Chat restore:** `history` is saved to `gideonChat` with a timestamp; if reopened within 30 min, bubbles are restored and the greeting becomes "Welcome back". Setup has CLEAR CHAT.
 13. **Action tags:** the `SYSTEM` prompt teaches Gemini to add hidden tags to replies. `applyActions()` strips them and acts on them before the reply is shown or spoken:
@@ -61,7 +64,10 @@ A personal AI voice assistant, inspired by the ship's-computer AI "Gideon" from 
     - `[CANCEL]` clears all timers. `[REMEMBER: fact]` → `remember()` (max 40, de-duplicated). `[FORGET]` clears memory. `[MOOD: alert|happy]` → `setMood()`.
     - Tag names must not contain `_ * # \``, because `callGemini()` strips those characters.
     - Memory facts and running timers are appended to the system prompt on every call. Setup shows the memory list with a FORGET MEMORIES button.
-14. **Mood colours:** `MOODS` holds `tint` (multiplies the shader colour via the `uTint` uniform, shared by head and bust) and `glow` (sets the CSS `--glow` var, so the title and buttons recolour too). Thinking = purple automatically, alert = red (timers, errors, `[MOOD: alert]`), happy = gold, calm = ice blue. `updateMood()` eases toward the target every frame.
+14. **Boot sequence:** the `#boot` tap unlocks WebAudio + speech (silent utterance inside the tap, required by iOS), plays `powerUpSound()` (filtered sawtooth sweep + two pings), types status rows into `#bootLog` (real checks: 3D, voices, mic, key, memory count), fills `#bootBar`, removes `body.cold` so the hologram fades in, then greets after 2.1 s and sets `booted`.
+15. **Moving eyes:** irises are drawn in the fragment shader around `eye centre + uLook`, using the per-vertex `aFace` attribute (face-space x,y) and `aIris` as an eyeball mask, plus pupils and catch-lights. `updateEyes()` sets `lookGoal`: random glances (saccades) when idle, up-and-aside while thinking, at the viewer while speaking; `lookAt(nx, ny, ms)` points them toward a tap on the stage.
+16. **Notes / to-do:** tags `[NOTE: item]`, `[DONE: number or words]`, `[CLEARNOTES]`; stored in `gideonNotes` (max 50), listed in the system prompt and in Setup (CLEAR NOTES). The prompt also asks for a 3–5 sentence **briefing** on "good morning" / "briefing" / "what did I miss" (date, weather via search, timers, top 3 notes).
+17. **Mood colours:** `MOODS` holds `tint` (multiplies the shader colour via the `uTint` uniform, shared by head and bust) and `glow` (sets the CSS `--glow` var, so the title and buttons recolour too). Thinking = purple automatically, alert = red (timers, errors, `[MOOD: alert]`), happy = gold, calm = ice blue. `updateMood()` eases toward the target every frame.
 
 ## History (what we tried and learned)
 1. **v1 was built as a claude.ai artifact.** It used Claude through the artifact `sample` capability, which needs no key. Inside the Claude app's sandbox, though, the **mic and sound are blocked**, so we moved to a standalone page in Safari.
@@ -80,7 +86,6 @@ A personal AI voice assistant, inspired by the ship's-computer AI "Gideon" from 
 - Gemini model names change over time. If you get a 404, check the current free Flash models.
 
 ## Ideas Liam may want next
-- A startup "boot sequence" animation and sound.
 - Optionally replace the procedural head with a CC0 3D head model (glTF) for more realism; the lip-sync would need morph targets or vertex weights.
 
 ## Working rules for this repo
