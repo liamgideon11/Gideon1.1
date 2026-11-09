@@ -126,6 +126,7 @@
   <input id="keyIn" type="password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Paste key here">
   <label>Gemini model</label>
   <input id="modelIn" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <p>Recommended: <b>gemini-3.5-flash-lite</b> (fastest, about 500 free questions a day). <b>gemini-3.8-flash</b> is a bit smarter but only allows about 20 a day.</p>
   <label>Your name</label>
   <input id="nameIn" autocomplete="off">
   <label>Your city (for weather and local questions)</label>
@@ -151,8 +152,13 @@
   <button type="button" id="clearNotes">CLEAR NOTES</button>
   <button type="button" id="saveSet">SAVE</button>
   <p>Your key is stored only on this phone, never in the website's code.</p>
-  <p>Want Gideon without opening this app? Follow the <a id="siriLink" href="https://github.com/liamxper42/Gideon/blob/main/SIRI-SHORTCUT.md" target="_blank" rel="noopener" style="color:#5fd4ff">Siri &amp; Vocal Shortcut guide</a>.</p>
-  <div class="ver">GIDEON v2.1</div>
+  <label>Use Gideon without opening this app (Siri)</label>
+  <p>Build the “Gideon” Siri Shortcut with the <a id="siriLink" href="https://github.com/liamxper42/Gideon/blob/main/SIRI-SHORTCUT.md" target="_blank" rel="noopener" style="color:#5fd4ff">step-by-step guide</a>. These buttons copy the bits you'd otherwise have to type:</p>
+  <button type="button" class="copyBtn" data-copy="persona">COPY SIRI PERSONALITY</button>
+  <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
+  <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
+  <p id="copyMsg"></p>
+  <div class="ver">GIDEON v2.5</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -613,7 +619,8 @@ function voiceAvailable(){
    still arriving, avoids iPhone cutting off long speech, and makes it
    easy to interrupt. talkStart() begins a reply, talkPush() adds text,
    talkEnd() says "no more text is coming", and `after` runs when done. */
-const talker = { q:[], busy:false, open:false, after:null, gen:0 };
+const talker = { q:[], busy:false, open:false, after:null, gen:0, u:null };
+let heardSound = false;                                   // becomes true once any speech has actually started
 function splitSentences(text){
   // a sentence ends at . ! ? followed by a space (so "2.5" and "3.14" aren't split)
   const parts = text.match(/[\s\S]*?[.!?…]+["')\]]*(?=\s|$)\s*|[\s\S]+$/g) || [text];
@@ -626,7 +633,9 @@ function splitSentences(text){
 function talkStart(after){
   stopRec();
   talker.gen++; talker.q = []; talker.busy = false; talker.open = true; talker.after = after || null;
-  try{ speechSynthesis.cancel(); }catch(e){}
+  // iPhone bug: calling cancel() right before speak() can make Safari silently drop the new speech,
+  // so only cancel when something is really playing
+  try{ if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); }catch(e){}
   lipQueue = [];
 }
 function talkPush(text){
@@ -663,9 +672,15 @@ function talkNext(){
     u.onstart = ()=>{ if(g !== talker.gen) return; statusEl.textContent = 'Speaking';
       // if this voice never reports word timing, animate the whole sentence by estimate
       setTimeout(()=>{ if(!gotBoundary && g === talker.gen) lipWholeText(text); }, 250); };
+    let started = false;
+    u.onstart = ((orig)=> ()=>{ started = true; heardSound = true; note(''); orig(); })(u.onstart);
     u.onend = u.onerror = done;
+    talker.u = u;                                         // keep it alive (Safari can drop unreferenced speech)
+    try{ if(speechSynthesis.paused) speechSynthesis.resume(); }catch(e){}
     speechSynthesis.speak(u);
-    setTimeout(()=>{ if(!speechSynthesis.speaking && !speechSynthesis.pending) done(); }, 1500);
+    setTimeout(()=>{
+      if(!speechSynthesis.speaking && !speechSynthesis.pending){ if(!started && !heardSound) showVoiceProblem(); done(); }
+    }, 1500);
   }catch(e){ showVoiceProblem(); done(); }
 }
 // Say one thing, then run `after`
@@ -679,7 +694,7 @@ function stopTalking(){
 }
 const noteEl = document.getElementById('note');
 function note(msg){ noteEl.textContent = msg; noteEl.style.display = msg ? 'block' : 'none'; }
-function showVoiceProblem(){ note('No sound? Turn off silent mode and turn the volume up, then tap ▶ PLAY.'); }
+function showVoiceProblem(){ note('No sound? Turn OFF silent mode (side switch or Control Centre bell), turn the volume up while Gideon talks, then tap ▶ PLAY.'); }
 voiceBtn.onclick = ()=>{
   voiceOn = !voiceOn;
   voiceBtn.textContent = voiceOn ? '🔊' : '🔇';
@@ -716,7 +731,7 @@ function applyVoiceSettings(){
 document.getElementById('testVoice').onclick = ()=>{ applyVoiceSettings(); speak('Hello. This is how I sound now.'); };
 function openSettings(){
   keyIn.value = store.get('gideonKey','');
-  modelIn.value = store.get('gideonModel','gemini-3.8-flash');
+  modelIn.value = store.get('gideonModel','gemini-3.5-flash-lite');
   nameIn.value = store.get('gideonName','Liam');
   cityIn.value = store.get('gideonCity','');
   document.getElementById('convoIn').value = store.get('gideonConvo','1');
@@ -727,7 +742,7 @@ function openSettings(){
 document.getElementById('gear').onclick = openSettings;
 document.getElementById('saveSet').onclick = ()=>{
   store.set('gideonKey', keyIn.value.trim());
-  store.set('gideonModel', (modelIn.value.trim() || 'gemini-3.8-flash').toLowerCase().replace(/\s+/g,''));
+  store.set('gideonModel', (modelIn.value.trim() || 'gemini-3.5-flash-lite').toLowerCase().replace(/\s+/g,''));
   store.set('gideonName', nameIn.value.trim() || 'Liam');
   store.set('gideonCity', cityIn.value.trim());
   store.set('gideonConvo', document.getElementById('convoIn').value);
@@ -761,7 +776,7 @@ document.getElementById('boot').onclick = (e)=>{
   if(boot.classList.contains('run')) return;
   boot.classList.add('run');
   unlockAudio(); powerUpSound();
-  try{ const u = new SpeechSynthesisUtterance(' '); u.volume = 0; speechSynthesis.speak(u); }catch(err){}   // unlock speech during the tap
+  speak('Initializing.');                                // a real word, spoken inside the tap, unlocks speech on iPhone
   const hasKey = !!store.get('gideonKey','');
   const lines = [
     ['NEURAL CORE', 'ONLINE', 'ok'],
@@ -1015,6 +1030,35 @@ function fillNotes(){
 }
 document.getElementById('clearNotes').onclick = ()=>{ notes = []; saveNotes(); speak('List cleared.'); };
 
+/* ---------- Siri Shortcut helpers ----------
+   The Siri Shortcut runs outside this app, so it can't read this phone's
+   saved settings. These buttons copy what it needs to the clipboard,
+   ready to paste into the Shortcuts app. Re-copy the personality now and
+   then, so the shortcut knows your latest memories and to-do list. */
+function siriPersonality(){
+  const name = store.get('gideonName','Liam'), city = store.get('gideonCity','');
+  return `You are Gideon, a calm, precise, slightly formal AI assistant with a dry sense of humour, an original character created by Liam. You are talking to ${name}${city ? ' in ' + city : ''} through Siri, so your reply is read aloud. Answer in 1 to 3 short sentences. No markdown, no lists, no emojis. Be kind and appropriate for a teenager. When ${name} is clearly finished (thanks, that's all, goodbye, see you), reply in a few words and put [END] at the very end.`
+    + (memory.length ? `\nThings you remember about ${name}: ` + memory.join('; ') + '.' : '')
+    + (notes.length ? `\n${name}'s to-do list: ` + notes.map((n,k) => (k+1) + ') ' + n).join('; ') + '.' : '')
+    + '\nToday is ';
+}
+for(const b of document.querySelectorAll('.copyBtn')){
+  b.onclick = async ()=>{
+    const what = b.dataset.copy;
+    const text = what === 'persona' ? siriPersonality()
+               : what === 'url' ? `https://generativelanguage.googleapis.com/v1beta/models/${store.get('gideonModel','gemini-3.5-flash-lite')}:generateContent`
+               : store.get('gideonKey','');
+    const msg = document.getElementById('copyMsg');
+    if(!text){ msg.textContent = 'No key saved yet. Paste your key at the top of Setup first.'; return; }
+    try{ await navigator.clipboard.writeText(text); }
+    catch(e){                                             // older iPhones: fall back to a hidden text box
+      const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select();
+      try{ document.execCommand('copy'); }catch(err){} ta.remove();
+    }
+    msg.textContent = '✓ Copied ' + (what === 'persona' ? 'Gideon\'s personality' : what === 'url' ? 'the Gemini link' : 'your key (keep it private!)') + '. Now paste it into the Shortcuts app.';
+  };
+}
+
 /* ---------- Timers and reminders ----------
    Gideon adds [TIMER: 300 | pizza] to a reply. We save the END time
    (not "seconds left"), so a timer survives reloading the page.
@@ -1135,7 +1179,17 @@ function addMsg(who, text){
    We send Gideon's personality + the conversation as JSON,
    and Gemini sends back JSON with the answer inside. */
 // Free models to try, in order, if the chosen one isn't available on this key
-const FALLBACK_MODELS = ['gemini-3.8-flash','gemini-3.7-flash','gemini-3.6-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-2.5-flash','gemini-2.5-flash-lite'];
+// Flash-Lite first: it's faster and the free tier allows far more requests per day (about 500 vs 20 for Flash)
+const FALLBACK_MODELS = ['gemini-3.5-flash-lite','gemini-3.1-flash-lite','gemini-3.8-flash','gemini-3.6-flash','gemini-3.5-flash','gemini-2.5-flash-lite','gemini-2.5-flash'];
+// One-time switch for phones still on the old default (Flash, ~20 free requests a day)
+// One-time switch: any phone that ended up on a full Flash model (only ~20 free a day) moves to Flash-Lite
+if(!store.get('gideonV23','')){ if(!/lite/.test(store.get('gideonModel',''))) store.set('gideonModel', 'gemini-3.5-flash-lite'); store.set('gideonModels',''); store.set('gideonV23','1'); }
+
+/* Web search makes answers slower and uses extra free quota, so only
+   switch it on when the question sounds like it needs fresh information. */
+function needsSearch(text){
+  return /\b(weather|forecast|temperature|rain|snow|news|headlines|today|tonight|tomorrow|yesterday|this week|weekend|latest|current|currently|right now|score|scores|game|match|won|win|playoffs|price|cost|stock|open now|hours|release|released|update|happening|election|briefing|good morning|what did i miss|who is|who's|when is|traffic)\b/i.test(text);
+}
 let searchOK = true;    // turns off automatically if web search isn't free for this key
 
 const FOLLOW_NOTE = '\nThis latest message was picked up by an open microphone during a follow-up, without your name being said. If it is clearly not meant for you (they are talking to someone else, a TV, background chatter, or it is meaningless), reply with only [IGNORE] and nothing else.';
@@ -1224,7 +1278,7 @@ async function availableModels(){
       .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
       .map(m => m.name.replace(/^models\//, ''))
       .filter(n => /^gemini-[\d.]+-flash(-lite)?(-preview(-[\d-]+)?)?$/.test(n))   // plain Flash chat models only
-      .sort((a,b) => ver(b) - ver(a) || a.length - b.length);      // newest first, non-preview before preview
+      .sort((a,b) => (b.includes('lite') - a.includes('lite')) || ver(b) - ver(a) || a.length - b.length);  // Lite first (fast, generous), then newest
     store.set('gideonModels', JSON.stringify({at: Date.now(), list}));
     return list;
   }catch(e){ return []; }
@@ -1244,30 +1298,32 @@ function restModel(model, err){
 let askCancelled = false, liveCtl = null;
 function cancelThinking(){ askCancelled = true; try{ liveCtl && liveCtl.abort(); }catch(e){} }
 
-async function askGemini(onText, extra){
+async function askGemini(onText, extra, wantSearch = true){
   askCancelled = false;
-  const chosen = store.get('gideonModel','gemini-3.8-flash');
+  const chosen = store.get('gideonModel','gemini-3.5-flash-lite');
   const found = await availableModels();
   const all = [...new Set([chosen, ...found, ...FALLBACK_MODELS])]
     .filter(m => !found.length || found.includes(m) || m === chosen)        // skip names Google says don't exist
     .filter(m => !(tired[m] > Date.now()));                                  // skip models resting after a quota error
   const MAX_TRIES = 5, deadline = Date.now() + 40000;                       // never "process" forever
-  let lastErr = null, tries = 0;
+  let lastErr = null, tries = 0, chosenMissing = false;
   if(!all.length){
     const longest = Math.max(0, ...Object.values(tired)) - Date.now();
     const e = new Error(longest > 30*60000 ? 'Daily free quota used up on every model.' : 'All models are resting after quota errors. Try again in a few minutes.');
     e.status = 429; throw e;
   }
   for(const model of all){
-    let useSearch = searchOK;
+    let useSearch = searchOK && wantSearch;
     while(tries < MAX_TRIES && Date.now() < deadline){
       if(askCancelled){ const c = new Error('Cancelled'); c.status = 499; throw c; }
       tries++;
       try{
         statusEl.textContent = 'Processing';
         const text = await callGemini(model, useSearch, true, onText, extra);
-        if(!useSearch && searchOK) searchOK = false;                   // search was the problem: leave it off
-        if(model !== chosen) store.set('gideonModel', model);          // remember the one that worked
+        if(!useSearch && searchOK && wantSearch) searchOK = false;     // search was the problem: leave it off
+        // Only replace your chosen model if it doesn't exist any more (404).
+        // If it was just out of quota, use the backup this once and go back to your choice later.
+        if(model !== chosen && chosenMissing) store.set('gideonModel', model);
         note('');
         return text;
       }catch(err){
@@ -1279,6 +1335,7 @@ async function askGemini(onText, extra){
         note('Trying another option… (' + model + ': ' + String(err.message).slice(0,80) + ')');
         if(useSearch && (err.status === 429 || err.status === 400 || err.status === 403)){ useSearch = false; continue; }  // retry once without web search
         if(err.status === 429) restModel(model, err);
+        if(model === chosen && err.status === 404) chosenMissing = true;
         break;                                                                     // next model
       }
     }
@@ -1330,7 +1387,7 @@ async function sendText(text, opts = {}){
   };
   let reply;
   try{
-    reply = applyActions(await askGemini(onText, opts.follow ? FOLLOW_NOTE : '') || '');
+    reply = applyActions(await askGemini(onText, opts.follow ? FOLLOW_NOTE : '', needsSearch(text)) || '');
     if(lastFlags.ignore && !reply){                      // not meant for Gideon: quietly go back to standby
       history.pop(); saveChat();
       bubble.remove(); youEl.classList.add('ignored');
@@ -1367,7 +1424,7 @@ async function sendText(text, opts = {}){
 form.addEventListener('submit', (e)=>{
   e.preventDefault();
   unlockAudio();
-  try{ speechSynthesis.cancel(); speechSynthesis.speak(new SpeechSynthesisUtterance('')); }catch(err){}  // unlock sound on tap
+  try{ if(speechSynthesis.paused) speechSynthesis.resume(); }catch(err){}
   sendText(input.value);
 });
 </script>
