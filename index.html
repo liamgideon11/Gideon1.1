@@ -133,7 +133,24 @@
   <input id="nameIn" autocomplete="off">
   <label>Your city (for weather and local questions)</label>
   <input id="cityIn" autocomplete="off" placeholder="e.g. Ottawa">
-  <label>Voice</label>
+  <label>Voice type</label>
+  <select id="engineIn">
+    <option value="gemini">Gideon AI voice (most human, uses Gemini)</option>
+    <option value="iphone">iPhone voice (works offline, robotic)</option>
+  </select>
+  <label>AI voice</label>
+  <select id="aiVoiceIn">
+    <option value="Kore">Kore: calm and firm (recommended)</option>
+    <option value="Despina">Despina: smooth</option>
+    <option value="Vindemiatrix">Vindemiatrix: gentle</option>
+    <option value="Sulafat">Sulafat: warm</option>
+    <option value="Aoede">Aoede: breezy</option>
+    <option value="Leda">Leda: youthful</option>
+    <option value="Zephyr">Zephyr: bright</option>
+    <option value="Charon">Charon: deep, informative (male)</option>
+    <option value="Orus">Orus: firm (male)</option>
+  </select>
+  <label>iPhone voice (used when the AI voice isn't available)</label>
   <select id="voiceIn"></select>
   <label>Speed <span id="rateVal"></span></label>
   <input id="rateIn" type="range" min="0.7" max="1.3" step="0.05">
@@ -160,7 +177,7 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v2.6</div>
+  <div class="ver">GIDEON v2.7</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -460,6 +477,7 @@ function buildHead(){
 const VISEME = {a:[0.9,0], e:[0.5,-0.6], i:[0.35,-0.8], y:[0.35,-0.7], o:[0.7,0.85], u:[0.3,1], w:[0.25,1],
   m:[0,0], b:[0,0], p:[0,0], f:[0.12,-0.3], v:[0.12,-0.3], l:[0.35,0], r:[0.3,0.4], s:[0.15,-0.5], t:[0.2,-0.2], d:[0.25,-0.1], th:[0.2,-0.2]};
 let lipQueue = [], lipRate = 1, mouthOpen = 0, mouthRound = 0, gotBoundary = false;
+let ttsAnalyser = null, ttsPlaying = false, ttsWave = null;   // set while the AI voice is playing
 function shapesFor(word, startMs){
   const out = [], per = 62 / lipRate;           // ~62 ms per letter
   let tm = startMs;
@@ -553,7 +571,13 @@ function animate(){
   updateMood(now); updateEyes(now);
   // find the mouth shape for right now
   let tgO = 0, tgR = 0;
-  if(speaking && lipQueue.length){
+  if(ttsPlaying && ttsAnalyser){
+    // AI voice: open the mouth by how loud the sound is right now (real lip-sync)
+    ttsAnalyser.getFloatTimeDomainData(ttsWave);
+    let sum = 0; for(let k=0;k<ttsWave.length;k++) sum += ttsWave[k]*ttsWave[k];
+    const rms = Math.sqrt(sum/ttsWave.length);
+    tgO = Math.min(1, rms*7); tgR = Math.sin(now/90)*0.35*tgO;
+  } else if(speaking && lipQueue.length){
     let cur = null; for(const f of lipQueue){ if(f.t <= now) cur = f; else break; }
     if(cur){ tgO = cur.open; tgR = cur.round; }
   }
@@ -639,7 +663,7 @@ function voiceAvailable(){
    still arriving, avoids iPhone cutting off long speech, and makes it
    easy to interrupt. talkStart() begins a reply, talkPush() adds text,
    talkEnd() says "no more text is coming", and `after` runs when done. */
-const talker = { q:[], busy:false, open:false, after:null, gen:0, u:null };
+const talker = { q:[], busy:false, open:false, after:null, gen:0, u:null, buf:'', iphone:false, src:null };
 let heardSound = false;                                   // becomes true once any speech has actually started
 function splitSentences(text){
   // a sentence ends at . ! ? followed by a space (so "2.5" and "3.14" aren't split)
@@ -650,9 +674,11 @@ function splitSentences(text){
   }
   return out.map(x => x.trim()).filter(Boolean);
 }
-function talkStart(after){
+function talkStart(after, opts = {}){
   stopRec();
+  stopAiAudio();
   talker.gen++; talker.q = []; talker.busy = false; talker.open = true; talker.after = after || null;
+  talker.buf = ''; talker.iphone = !!opts.iphone;
   // iPhone bug: calling cancel() right before speak() can make Safari silently drop the new speech,
   // so only cancel when something is really playing
   try{ if(speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel(); }catch(e){}
@@ -661,11 +687,16 @@ function talkStart(after){
 function talkPush(text){
   text = (text || '').trim();
   if(!text || !voiceOn) return;
-  talker.q.push(...splitSentences(text));
   speaking = true;
+  if(useAiVoice() && !talker.iphone){ talker.buf += (talker.buf ? ' ' : '') + text; return; }   // collect, then say it all at once
+  talker.q.push(...splitSentences(text));
   talkNext();
 }
-function talkEnd(){ talker.open = false; if(!talker.busy && !talker.q.length) talkFinish(talker.gen); }
+function talkEnd(){
+  talker.open = false;
+  if(talker.buf){ const t = talker.buf; talker.buf = ''; playAi(t, talker.gen); return; }
+  if(!talker.busy && !talker.q.length) talkFinish(talker.gen);
+}
 function talkFinish(g){
   if(g !== talker.gen) return;
   speaking = false; lipQueue = [];
@@ -703,11 +734,102 @@ function talkNext(){
     }, 1500);
   }catch(e){ showVoiceProblem(); done(); }
 }
-// Say one thing, then run `after`
-function speak(text, after){ talkStart(after); talkPush(text); talkEnd(); }
+// Say one thing, then run `after`. opts.iphone forces the built-in voice.
+function speak(text, after, opts){ talkStart(after, opts); talkPush(text); talkEnd(); }
+
+/* ---------- Gideon AI voice (Gemini text-to-speech) ----------
+   1. Send the reply text to a Gemini "TTS" model, with a note about HOW to say it.
+   2. Google sends back raw audio (PCM: a long list of numbers, 24,000 per second).
+   3. We turn those numbers into a sound and play it with WebAudio, through an
+      "analyser" that measures loudness, which moves Gideon's mouth.
+   If anything fails (no internet, free limit reached), we use the iPhone voice instead. */
+const AI_STYLE = 'Say this in a calm, warm, precise and slightly formal voice, like a friendly starship computer: ';
+const TTS_FALLBACK = ['gemini-3.8-flash-lite-tts','gemini-3.8-flash-tts','gemini-3.1-flash-tts-preview','gemini-2.5-flash-preview-tts'];
+const ttsCache = new Map();                              // short phrases ("Yes?") are only generated once
+let aiVoiceBroken = 0;                                    // time until which we skip the AI voice after failures
+function useAiVoice(){ return store.get('gideonEngine','gemini') === 'gemini' && !!store.get('gideonKey','') && Date.now() > aiVoiceBroken; }
+function stopAiAudio(){ if(talker.src){ try{ talker.src.onended = null; talker.src.stop(); }catch(e){} talker.src = null; } ttsPlaying = false; }
+
+async function ttsModels(){
+  try{ const c = JSON.parse(store.get('gideonTTSModels','null')); if(c && Date.now() - c.at < 86400000 && c.list.length) return c.list; }catch(e){}
+  try{
+    const ctl = new AbortController(); setTimeout(()=> ctl.abort(), 6000);
+    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers:{ 'x-goog-api-key': store.get('gideonKey','').trim() }, signal: ctl.signal });
+    if(r.ok){
+      const d = await r.json();
+      const list = (d.models || []).map(m => m.name.replace(/^models\//,''))
+        .filter(n => /tts/.test(n) && !/pro/.test(n))
+        .sort((a,b) => (b.includes('lite') - a.includes('lite')) || (parseFloat(b.slice(7)) - parseFloat(a.slice(7))));
+      if(list.length){ store.set('gideonTTSModels', JSON.stringify({at: Date.now(), list})); return list; }
+    }
+  }catch(e){}
+  return TTS_FALLBACK;
+}
+
+async function ttsAudio(text){
+  const voiceName = store.get('gideonAiVoice','Kore');
+  const key = voiceName + '|' + text;
+  if(ttsCache.has(key)) return ttsCache.get(key);
+  if(!actx) throw new Error('Sound not unlocked yet');
+  let lastErr = null;
+  for(const model of (await ttsModels()).filter(m => !(tired[m] > Date.now())).slice(0, 3)){
+    const ctl = new AbortController(); const timer = setTimeout(()=> ctl.abort(), 15000);
+    try{
+      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+        method:'POST', signal: ctl.signal,
+        headers:{ 'Content-Type':'application/json', 'x-goog-api-key': store.get('gideonKey','').trim() },
+        body: JSON.stringify({
+          contents:[{ parts:[{ text: AI_STYLE + text }] }],
+          generationConfig:{ responseModalities:['AUDIO'], speechConfig:{ voiceConfig:{ prebuiltVoiceConfig:{ voiceName } } } }
+        })
+      });
+      clearTimeout(timer);
+      const data = await r.json().catch(()=> ({}));
+      if(!r.ok){ const e = new Error(data?.error?.message || ('HTTP ' + r.status)); e.status = r.status; throw e; }
+      const part = (data?.candidates?.[0]?.content?.parts || []).find(p => p.inlineData && p.inlineData.data);
+      if(!part) throw new Error('No audio in reply');
+      // raw 16-bit PCM -> numbers between -1 and 1 -> an AudioBuffer we can play
+      const rate = parseInt((part.inlineData.mimeType.match(/rate=(\d+)/) || [])[1] || '24000', 10);
+      const bin = atob(part.inlineData.data), n = bin.length >> 1;
+      const buf = actx.createBuffer(1, n, rate), ch = buf.getChannelData(0);
+      for(let i=0;i<n;i++){ let v = bin.charCodeAt(2*i) | (bin.charCodeAt(2*i+1) << 8); if(v >= 32768) v -= 65536; ch[i] = v / 32768; }
+      if(text.length < 40) ttsCache.set(key, buf);
+      return buf;
+    }catch(e){
+      clearTimeout(timer); lastErr = e;
+      if(e.status === 429) restModel(model, e);
+      if(e.status && e.status !== 429 && e.status !== 404 && e.status !== 400) break;   // not a "try another model" problem
+    }
+  }
+  throw lastErr || new Error('No AI voice available');
+}
+
+async function playAi(text, g){
+  talker.busy = true;
+  let buf;
+  try{ buf = await ttsAudio(text); }
+  catch(e){
+    if(g !== talker.gen) return;
+    aiVoiceBroken = Date.now() + 10*60*1000;              // rest the AI voice for 10 minutes
+    console.warn('AI voice unavailable, using iPhone voice:', e.message);
+    talker.busy = false;
+    talker.q.push(...splitSentences(text));               // say it with the iPhone voice instead
+    talkNext();
+    return;
+  }
+  if(g !== talker.gen) return;                            // interrupted while it was being made
+  try{ if(actx.state === 'suspended') await actx.resume(); }catch(e){}
+  if(!ttsAnalyser){ ttsAnalyser = actx.createAnalyser(); ttsAnalyser.fftSize = 512; ttsWave = new Float32Array(ttsAnalyser.fftSize); ttsAnalyser.connect(actx.destination); }
+  const src = actx.createBufferSource(); src.buffer = buf; src.connect(ttsAnalyser);
+  talker.src = src; ttsPlaying = true; heardSound = true; note('');
+  statusEl.textContent = 'Speaking';
+  src.onended = ()=>{ if(talker.src !== src) return; talker.src = null; ttsPlaying = false; talker.busy = false; if(g === talker.gen) talkFinish(g); };
+  src.start();
+}
 // Stop talking right now (tap on the head, mic button, mute)
 function stopTalking(){
-  talker.gen++; talker.q = []; talker.busy = false; talker.open = false; talker.after = null;
+  stopAiAudio();
+  talker.gen++; talker.q = []; talker.busy = false; talker.open = false; talker.after = null; talker.buf = '';
   try{ speechSynthesis.cancel(); }catch(e){}
   speaking = false; lipQueue = [];
   if(!thinking) statusEl.textContent = 'Online';
@@ -744,17 +866,22 @@ function fillVoices(){
 function showVals(){ document.getElementById('rateVal').textContent = '× ' + rateIn.value; document.getElementById('pitchVal').textContent = '× ' + pitchIn.value; }
 rateIn.oninput = pitchIn.oninput = showVals;
 function applyVoiceSettings(){
+  store.set('gideonEngine', document.getElementById('engineIn').value);
+  store.set('gideonAiVoice', document.getElementById('aiVoiceIn').value);
+  aiVoiceBroken = 0;                                      // give the AI voice a fresh try
   store.set('gideonVoice', voiceIn.value || '');
   store.set('gideonRate', rateIn.value); store.set('gideonPitch', pitchIn.value);
   pickVoice();
 }
-document.getElementById('testVoice').onclick = ()=>{ applyVoiceSettings(); speak('Hello. This is how I sound now.'); };
+document.getElementById('testVoice').onclick = ()=>{ unlockAudio(); applyVoiceSettings(); speak('Hello. This is how I sound now.'); };
 function openSettings(){
   keyIn.value = store.get('gideonKey','');
   modelIn.value = store.get('gideonModel','gemini-3.5-flash-lite');
   nameIn.value = store.get('gideonName','Liam');
   cityIn.value = store.get('gideonCity','');
   document.getElementById('convoIn').value = store.get('gideonConvo','1');
+  document.getElementById('engineIn').value = store.get('gideonEngine','gemini');
+  document.getElementById('aiVoiceIn').value = store.get('gideonAiVoice','Kore');
   rateIn.value = store.get('gideonRate','0.98'); pitchIn.value = store.get('gideonPitch','1.05'); showVals();
   fillVoices(); fillMemory(); fillNotes();
   settingsEl.classList.add('show');
@@ -796,7 +923,7 @@ document.getElementById('boot').onclick = (e)=>{
   if(boot.classList.contains('run')) return;
   boot.classList.add('run');
   unlockAudio(); powerUpSound();
-  speak('Initializing.');                                // a real word, spoken inside the tap, unlocks speech on iPhone
+  speak('Initializing.', null, {iphone:true});                                // a real word, spoken inside the tap, unlocks speech on iPhone
   const hasKey = !!store.get('gideonKey','');
   const lines = [
     ['NEURAL CORE', 'ONLINE', 'ok'],
