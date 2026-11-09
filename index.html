@@ -177,7 +177,7 @@
   <button type="button" class="copyBtn" data-copy="url">COPY GEMINI LINK</button>
   <button type="button" class="copyBtn" data-copy="key">COPY MY KEY</button>
   <p id="copyMsg"></p>
-  <div class="ver">GIDEON v3.2</div>
+  <div class="ver">GIDEON v3.3</div>
 </div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -354,7 +354,7 @@ function buildHead(){
       float eyeShade = (bm(vFace, vec2(-${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035)) + bm(vFace, vec2(${EYE_X.toFixed(3)}, ${(EYE_Y+0.01).toFixed(3)}), vec2(0.07,0.035))) * smoothstep(0.35,0.7,vP.z);
       col *= 1.0 - 0.06*eyeShade*(1.0-uBlink);
       col *= uTint;                                                  // mood colour
-      float a = 0.62 + fres*0.33;                                     // see-through (alpha .62 + transmission in the script)
+      float a = 0.93 + fres*0.07;                                     // see-through (alpha .62 + transmission in the script)
       if(uFade > 0.5) a *= smoothstep(-2.25, -1.7, vY);            // shoulders fade out
       gl_FragColor = vec4(col, a);
     }`;
@@ -533,7 +533,6 @@ function drawGlass(){
   };
   const bead = (x, z, r)=>{
     const px = X(x), py = Y(z), rr = Math.max(1.6, r*k*0.9);
-    if(onGideon(px, py)) return;
     gcx.fillStyle = 'rgba(0,6,20,0.35)';                                          // soft shadow below the bead
     gcx.beginPath(); gcx.ellipse(px+rr*0.25, py+rr*0.35, rr, rr*1.05, 0, 0, 6.283); gcx.fill();
     const g = gcx.createRadialGradient(px-rr*0.35, py-rr*0.4, rr*0.1, px, py, rr);
@@ -548,17 +547,15 @@ function drawGlass(){
       const z = -2.75 + row*0.55 + U(-0.08,0.08);
       for(let col=0; col<5; col++) bead(side*(1.72 + col*0.48 + U(-0.08,0.08)), z, U(0.055,0.12));
     }
-  for(let i=0;i<60;i++){                                                          // a few over the face, centre kept clear
-    const x = U(-1.65,1.65), z = U(-2.55,2.85), r = U(0.035,0.08);
-    if(Math.abs(x) < 0.55 && z > -0.9 && z < 1.15) continue;
-    bead(x, z, r);
+  for(let row=0; row<11; row++){                                                  // fill the middle too, so the grid runs right across behind Gideon
+    const z = -2.75 + row*0.55 + U(-0.08,0.08);
+    for(let col=-3; col<=3; col++) bead(col*0.48 + U(-0.08,0.08), z, U(0.055,0.12));
   }
   gcx.lineCap = 'round'; gcx.shadowColor = '#1a7dff'; gcx.shadowBlur = 8;         // short glowing frost streaks at the sides
   for(let i=0;i<26;i++){
     const z = U(-3.1,3.2), x = i%2===0 ? U(-4.0,-2.0) : U(2.0,4.0);
     const x1 = x+U(-0.8,0.8), z1 = z+U(-0.25,0.25), x2 = x+U(-1.4,1.4), z2 = z+U(-0.45,0.45);
     gcx.strokeStyle = 'rgba(70,170,255,0.75)'; gcx.lineWidth = Math.max(0.7, U(0.006,0.018)*k*1.6);
-    if(onGideon(X(x),Y(z)) || onGideon(X(x1),Y(z1)) || onGideon(X(x2),Y(z2))) continue;
     gcx.beginPath(); gcx.moveTo(X(x),Y(z)); gcx.quadraticCurveTo(X(x1),Y(z1), X(x2),Y(z2)); gcx.stroke();
   }
   gcx.shadowBlur = 0;
