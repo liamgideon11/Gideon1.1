@@ -15,7 +15,7 @@ A personal AI voice assistant, inspired by the ship's-computer AI "Gideon" from 
 
 ## Hard constraints
 - **100% free.** Gemini API free tier only (key from aistudio.google.com, no credit card). No paid hosting.
-- **Hosting:** GitHub Pages, repo named `Gideon`. The old account `liamxper42` was locked out (Nov 2026), so Liam is moving to a **new GitHub account**; the live URL will be `https://NEWNAME.github.io/Gideon/` (case-sensitive). The Siri-guide link in Setup works out the account name from the page URL, so nothing needs editing when the account changes.
+- **Hosting:** GitHub Pages from repo **`liamgideon11/Gideon1.1`** (branch `main`). Live URL (case-sensitive): `https://liamgideon11.github.io/Gideon1.1/`. The old account `liamxper42` (repo `Gideon`) was locked out in Nov 2026 and is no longer used. The Siri-guide link in Setup works out the account name from the page URL, so nothing needs editing when the account changes.
 - **The API key must never be in the code.** The repo is public. The user pastes the key into the in-app ⚙︎ Setup, and it's stored in `localStorage` on the phone only.
 - **Runs in iPhone Safari** and as an "Add to Home Screen" web app.
 
@@ -64,7 +64,7 @@ A personal AI voice assistant, inspired by the ship's-computer AI "Gideon" from 
     - `[CANCEL]` clears all timers. `[REMEMBER: fact]` → `remember()` (max 40, de-duplicated). `[FORGET]` clears memory. `[MOOD: alert|happy]` → `setMood()`.
     - Tag names must not contain `_ * # \``, because `callGemini()` strips those characters.
     - Memory facts and running timers are appended to the system prompt on every call. Setup shows the memory list with a FORGET MEMORIES button.
-14. **Boot sequence:** the `#boot` tap unlocks WebAudio + speech (silent utterance inside the tap, required by iOS), plays `powerUpSound()` (filtered sawtooth sweep + two pings), types status rows into `#bootLog` (real checks: 3D, voices, mic, key, memory count), fills `#bootBar`, removes `body.cold` so the hologram fades in, then greets after 2.1 s and sets `booted`.
+14. **Boot sequence:** the `#boot` tap unlocks WebAudio + speech (it speaks "Initializing." inside the tap; a silent/blank utterance does NOT unlock iOS), plays `powerUpSound()` (filtered sawtooth sweep + two pings), types status rows into `#bootLog` (real checks: 3D, voices, mic, key, memory count), fills `#bootBar`, removes `body.cold` so the hologram fades in, then greets after 2.1 s and sets `booted`.
 15. **Moving eyes:** irises are drawn in the fragment shader around `eye centre + uLook`, using the per-vertex `aFace` attribute (face-space x,y) and `aIris` as an eyeball mask, plus pupils and catch-lights. `updateEyes()` sets `lookGoal`: random glances (saccades) when idle, up-and-aside while thinking, at the viewer while speaking; `lookAt(nx, ny, ms)` points them toward a tap on the stage.
 16. **Notes / to-do:** tags `[NOTE: item]`, `[DONE: number or words]`, `[CLEARNOTES]`; stored in `gideonNotes` (max 50), listed in the system prompt and in Setup (CLEAR NOTES). The prompt also asks for a 3–5 sentence **briefing** on "good morning" / "briefing" / "what did I miss" (date, weather via search, timers, top 3 notes).
 17. **Mood colours:** `MOODS` holds `tint` (multiplies the shader colour via the `uTint` uniform, shared by head and bust) and `glow` (sets the CSS `--glow` var, so the title and buttons recolour too). Thinking = purple automatically, alert = red (timers, errors, `[MOOD: alert]`), happy = gold, calm = ice blue. `updateMood()` eases toward the target every frame.
